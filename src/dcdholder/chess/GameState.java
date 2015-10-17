@@ -10,6 +10,7 @@ import java.math.*;
 //TODO: write all of the arbiter methods for each piece
 //TODO: figure out a way to allow promotion to arbitrary piece type, not just queen
 //TODO: begin testing once CLI is done and arbiters have been implemented
+//TODO: think about how you're going to implement and test all of that server-side shit
 public class GameState {
 	Set<Piece> chessPieces;
 	//this is a list because pieces that have been captured may have identical state at the point of capture to pieces that were captured earlier
@@ -19,7 +20,6 @@ public class GameState {
 	public String createBoardString() {
 		String boardString = new String();
 		String[] boardLine = new String[8];
-		String tmpLine = new String();
 		//first, draw the board from the perspective of the white player, then draw depending on the current player
 		//board is initially in the correct left-to-right order with respect to white
 		for(int j=1;j<=8;j++) {
@@ -642,6 +642,75 @@ public class GameState {
 			                                " Moves which are only in actual move set: " + movesOnlyInActual.toString() + 
 			                                " Moves which are in both: " + movesIntersection.toString());
 		}
+	}
+	
+	//each test needs to cover positive and negative cases
+	//starting from a fresh board, get into position to test as quickly as possible
+	//add a "board snapshot" feature to store test results in a file
+	//load all of these tests from files; there should be a moveSequence test directory
+	//piece function testing might take something like 200 moves, which would cost about 25kB to store the boards
+	//consider storing multiple boards on the same line... otherwise it'll be something like 1600 lines
+	//if I stick to the 80 character limit, that gives me either 8 or 9 boards per line...
+	public void test_Pawn_normalMove() {
+		//positive: march pawns on both teams up to the center of the board (32 turns)
+		//negative: along the way, query each pawn's movement to every position on the board, except for forward
+	}
+	public void test_Pawn_doubleMove() {
+		//positive: on every pawn on the board, perform a double move from the starting position (16 turns)
+		//negative: immediately afterwards, attempt to perform a double move, then settle for a single move (16 turns)
+	}
+	public void test_Pawn_captureMove() {
+		//positive: get into position as quickly as possible, use a pawn to capture a piece from each side (6 turns)
+		//negative: after killing pawns, attempt to make killing moves on empty squares (and fail)
+	}
+	public void test_Pawn_enPassantMove() {
+		//positive: get into position (on each side), capture a piece (5+ turns)
+		//negative: wait an extra move after a double move to attempt another en passant on each side (and fail)
+	}
+	public void test_Pawn_promotion() {
+		//positive: move pieces on both sides out of the way so that pawns can traverse the board, confirm that a queen is created (probably 10-12 moves)
+		//negative: make sure that the pawn doesn't get promoted as it moves
+	}
+	public void test_Knight_normalMove() {
+		//positive: move all 4 knights in the 8 different possible ways - no need to move anything else, confirm that they can capture (32 moves)
+		//negative: confirm that every other move is not possible
+	}
+	public void test_Bishop_normalMove() {
+		//positive: move bishops to the middle of the board, confirm that they can capture (like 8 moves)
+		//negative: make sure that the possible move list is as expected
+	}
+	public void test_Rook_normalMove() {
+		//positive: move rooks around middle of board, start capturing pieces (like 8 moves)
+		//negative: make sure that the possible move list is as expected
+	}
+	public void test_Queen_normalMove() {
+		//positive: move queens around middle of board, start capturing pieces (like 16 moves)
+		//negative: make sure that the possible move list is as expected
+	}
+	public void test_King_normalMove() {
+		//positive: move kings around middle of board, start capturing pieces (be wary of checks, stalemates, checkmates) (like 8 moves)
+		//negative: make sure that the possible move list is as expected
+	}
+	public void test_King_castling() {
+		//positive: move pieces out of the way, then castle (like 8 moves)
+		//negative: move rooks around, then back into position before attempting to castle (8 moves)
+		//reset the board, move the king again, then try again (8 moves)
+		//then try to do it with pieces in the way
+	}
+	public void fast_check() {
+		
+	}
+	public void fast_stalemate() {
+		
+	}
+	public void fast_checkmate() {
+		
+	}
+	public void fast_50MoveRule() {
+		
+	}
+	public void fast_threefoldRepetition() {
+		
 	}
 	
 	GameState() {
