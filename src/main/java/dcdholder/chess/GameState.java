@@ -132,6 +132,7 @@ public class GameState {
 		char REP_CHAR = 'X';
 		Coord pieceCoord;
 		PieceColour pieceColour;
+		boolean collisionChecking;
 		Set<Coord> relativeCoordSet;
 		
 		public Coord getPieceCoord() {return this.pieceCoord;}
@@ -155,20 +156,100 @@ public class GameState {
 			removePieceAtLocation(move.dest);
 			pieceCoord = new Coord(move.getDest());
 		}
-		
+		//TODO: this should probably call pieceSpecificArbiter, not the other way around
+		//TODO: rename "moveLegal" to "arbiter"
 		public boolean isMoveLegalCommon(Move moveAttempt) {
-			//if the initial coordinates do not match the piece's
+			Piece currentPiece = getPieceAtLocation(moveAttempt.getInit());
+			boolean checkVertical = false, checkHorizontal = false;
+			int incHorizontal, incVertical;
+			int horizontalShift, verticalShift;
+			int xToCheck, yToCheck;
+			
+			//check if the initial coords match the piece's
 			if(!moveAttempt.getInit().equals(this.pieceCoord)) {
 				return false;
-			} else if(!formMovesFromRelativeCoordSet().contains(moveAttempt)) { //check whether move is in movelist
-				return false;
-			} else {
-				return true;
 			}
+			//check if the move is in the potential move list
+			if(!formMovesFromRelativeCoordSet().contains(moveAttempt)) { //check whether move is in movelist
+				return false;
+			}
+			//cannot capture own piece!
+			if(getPieceAtLocation(moveAttempt.getDest()).pieceColour==currentPlayer) {
+				return false;
+			}
+			//check if there would be a collision
+			if(collisionChecking) {
+				if(moveAttempt.getInit().getX()!=moveAttempt.getDest().getX()) {
+					checkHorizontal = true;
+				}
+				if(moveAttempt.getInit().getY()!=moveAttempt.getDest().getY()) {
+					checkVertical = true;
+				}
+				
+				if(checkHorizontal&&checkVertical) {
+					if(Move.absCoordDeltaFromMove(moveAttempt).getX()==Move.absCoordDeltaFromMove(moveAttempt).getY()) {
+						//diagonal move
+						if(moveAttempt.getDest().getX()-moveAttempt.getInit().getX()>0) {
+							incHorizontal=1;
+						} else {
+							incHorizontal=-1;
+						}
+						if(moveAttempt.getDest().getY()-moveAttempt.getInit().getY()>0) {
+							incVertical=1;
+						} else {
+							incVertical=-1;
+						}
+						for(int i=moveAttempt.getInit().getX()+1;i<moveAttempt.getDest().getX();i++) {
+							horizontalShift+=incHorizontal;
+							verticalShift+=incVertical;
+							
+							xToCheck = moveAttempt.getInit().getX()+horizontalShift;
+							yToCheck = moveAttempt.getInit().getY()+verticalShift;
+							if(coordContainsPiece(new Coord(xToCheck,yToCheck))) {
+								return false;
+							}
+						}
+					} else {
+						throw new IllegalArgumentException("Invalid move direction with collision checking enabled");
+					}
+				} else if(checkHorizontal&&!checkVertical) {
+					//horizontal move
+					if(moveAttempt.getDest().getX()-moveAttempt.getInit().getX()>0) {
+						for(int i=moveAttempt.getInit().getX()+1;i<moveAttempt.getDest().getX();i++) {
+							if(coordContainsPiece(new Coord(i,moveAttempt.getInit().getY()))) {
+								return false;
+							}
+						}
+					} else {
+						for(int i=moveAttempt.getInit().getX()-1;i>moveAttempt.getDest().getX();i--) {
+							if(coordContainsPiece(new Coord(i,moveAttempt.getInit().getY()))) {
+								return false;
+							}
+						}
+					}
+				} else if(!checkHorizontal&&checkVertical) {
+					//vertical move
+					if(moveAttempt.getDest().getY()-moveAttempt.getInit().getY()>0) {
+						for(int j=moveAttempt.getInit().getY()+1;j<moveAttempt.getDest().getY();j++) {
+							if(coordContainsPiece(new Coord(moveAttempt.getInit().getX(),j))) {
+								return false;
+							}
+						}
+					} else {
+						for(int j=moveAttempt.getInit().getY()-1;j>moveAttempt.getDest().getY();j--) {
+							if(coordContainsPiece(new Coord(moveAttempt.getInit().getX(),j))) {
+								return false;
+							}
+						}
+					}
+				}
+			}
+			return true;
 		}
 		
 		Piece(PieceColour pieceColour, Coord pieceCoord) {
 			this.pieceColour = pieceColour;
+			this.collisionChecking = false;
 			this.pieceCoord = new Coord(pieceCoord);
 		}
 	}
@@ -188,7 +269,17 @@ public class GameState {
 		public boolean isMoveLegalPieceSpecific(Move moveAttempt) {
 			if(!isMoveLegalCommon(moveAttempt)) {
 				return false;
-			} else {
+			}
+			//only allow double moves from the home row
+			if() {
+				return false;
+			}
+			//only allow captures moves if there is a piece to capture in the first place
+			if() {
+				return false;
+			}
+			//only allow en passants if the other piece is a pawn, and its lastMoveWasDouble variable is set (needs to be reset every turn)
+			if() {
 				return false;
 			}
 		}
@@ -358,10 +449,10 @@ public class GameState {
 				super.REP_CHAR = '♞';
 			}
 			this.relativeCoordSet = testableRelativeCoord();
+			this.collisionChecking = false;
 		}
 	}
 	public class Queen extends Piece {
-		
 		public void makeMovePieceSpecific(Move move) {
 			makeMovePieceCommon(move);
 		}
@@ -435,8 +526,25 @@ public class GameState {
 		public boolean isMoveLegalPieceSpecific(Move moveAttempt) {
 			if(!isMoveLegalCommon(moveAttempt)) {
 				return false;
-			} else {
-				return false;
+			}
+			//check if the move is an attempted castle
+			if() {
+				//if the destination is not the current player's rook
+				if() {
+					return false;
+				}
+				//if the king has already moved
+				if() {
+					return false;
+				}
+				//if any of the squares between the two are occupied
+				if() {
+					
+				}
+				//if any of the squares between the two are under attack
+				if() {
+					
+				}
 			}
 		}
 		public Set<Coord> testableRelativeCoord() {
