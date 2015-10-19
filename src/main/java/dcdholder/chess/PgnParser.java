@@ -48,13 +48,13 @@ public class PgnParser {
 	
 	private static List<Move> getMoveObjectsString(String parseString) {
 		List<Move> pgnMoveObjects = new ArrayList<Move>();
-		String nakedString = stripMetadataString(parseString);
+		@SuppressWarnings("unused") String nakedString = stripMetadataString(parseString);
 		
 		return pgnMoveObjects;
 	}
 	private static Map<Integer,String> getMoveSanString(String parseString) {
 		Map<Integer,String> pgnMoveSans = new HashMap<Integer,String>(); //map move number to SAN string - 'SAN'=='Standard Algebraic Notation'
-		String nakedString = stripMetadataString(parseString);
+		@SuppressWarnings("unused") String nakedString = stripMetadataString(parseString);
 		
 		return pgnMoveSans;
 	}
@@ -83,11 +83,12 @@ public class PgnParser {
 		parseString=stripMetadataString(parseString);
 		parseString=stripSanString(parseString);
 		//TODO: check that the string now contains only whitespace
-		if(nothingButWhitespace) {
-			return true;
-		} else {
-			return false;
-		}
+		//if(nothingButWhitespace) {
+		//	return true;
+		//} else {
+		//	return false;
+		//}
+		return false;
 	}
 	//requires a full-blown chess rules engine to play through the game as it is read
 	private static boolean isValidPgnStringDeep(String parseString) {
@@ -120,8 +121,8 @@ public class PgnParser {
 		//TODO: figure out a way to make this static...
 		private Map<String,String> PIECE_CHAR_TO_TYPE_STRING = new HashMap<String,String>();
 		
-		private static String STANDARD_MOVEWORD_PATTERN = "((?<pieceType>[QKRBN]?)(?<initFile>[a-g]?)(?<initRank>[1-8]?)(?<isCaptureMove>[x]?)(?<destFile>[a-g])(?<destRank>[1-8])(?<isPawnPromotion>=?)(?<pieceTypePromotion>[QRBNP]?)(?<modifiers>[#+]?)";
-		private static String CASTLING_MOVEWORD_PATTERN = "(O-O)";
+		private final String STANDARD_MOVEWORD_PATTERN = "((?<pieceType>[QKRBN]?)(?<initFile>[a-g]?)(?<initRank>[1-8]?)(?<isCaptureMove>[x]?)(?<destFile>[a-g])(?<destRank>[1-8])(?<isPawnPromotion>=?)(?<pieceTypePromotion>[QRBNP]?)(?<modifiers>[#+]?)";
+		private final String CASTLING_MOVEWORD_PATTERN = "(O-O)";
 		
 		String initFile="",initRank="";
 		String destFile="",destRank="";

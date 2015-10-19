@@ -2,53 +2,52 @@ package dcdholder.chess;
 
 //TODO: fix Move methods which "fake" the static modifier, and calls to Coord methods which do the same
 public class Move {
-	public Coord init;
-	public Coord dest;
+	private Coord init;
+	private Coord dest;
 	
 	public Coord getInit() {return this.init;}
 	public Coord getDest() {return this.dest;}
 	
 	//figure out if there's a way to make this static
-	public boolean wouldBeLegalMoveObject(Coord init, Coord dest) {
+	public static boolean wouldBeLegalMoveObject(Coord init, Coord dest) {
 		if(init.bothDimsBetween1And8()&&dest.bothDimsBetween1And8()&&!init.equals(dest)) {
 			return true;
 		} else {
 			return false;
 		}
 	}
-	public boolean wouldBeLegalMoveObjectFromRelative(Coord init, Coord relative) {
-		Coord dummyCoord = new Coord();
-		
-		return wouldBeLegalMoveObject(init,dummyCoord.addCoords(init,relative));
+	public static boolean wouldBeLegalMoveObjectFromRelative(Coord init, Coord relative) {
+		return wouldBeLegalMoveObject(init,Coord.addCoords(init,relative));
 	}
 	
-	public Coord coordDeltaFromMove(Move move) {
-		Coord dummyCoord = new Coord();
-		
-		return dummyCoord.subCoords(move.dest,move.init);
+	static Coord coordDeltaFromMove(Move move) {
+		return Coord.subCoords(move.dest,move.init);
 	}
 	
-	public Coord absCoordDeltaFromMove(Move move) {
+	static Coord absCoordDeltaFromMove(Move move) {
 		Coord returnCoord = coordDeltaFromMove(move);
 		
 		return returnCoord.absCoord();
 	}
 	
-	public boolean moveIsToDirection(Move move, String direction) {
+	public boolean moveIsToDirection(String direction) {
 		boolean isToDirection = false;
 		
 		switch (direction) {
 			case "right":
-				if(move.dest.getX()>move.init.getX()) {isToDirection=true;}
+				if(this.dest.getX()>this.init.getX()) {isToDirection=true;}
 				break;
 			case "left":
-				if(move.dest.getX()<move.init.getX()) {isToDirection=true;}
+				if(this.dest.getX()<this.init.getX()) {isToDirection=true;}
 				break;
 			case "up":
-				if(move.dest.getY()>move.init.getY()) {isToDirection=true;}
+				if(this.dest.getY()>this.init.getY()) {isToDirection=true;}
 				break;
 			case "down":
-				if(move.dest.getY()<move.init.getY()) {isToDirection=true;}
+				if(this.dest.getY()<this.init.getY()) {isToDirection=true;}
+				break;
+			case "diagonal":
+				if(absCoordDeltaFromMove(this).getX()==absCoordDeltaFromMove(this).getY()) {isToDirection=true;}
 				break;
 		}
 		
@@ -59,8 +58,16 @@ public class Move {
 		return "Initial coord: {" + this.init.toString() + "}, Destination coord: {" + this.dest.toString() + "}";
 	}
 	
-	public boolean equals(Move inputMove) {
-		if(this.init.equals(inputMove.init) && this.init.equals(inputMove.dest)) {return true;} else {return false;}
+	public int hashCode() {
+		return this.init.hashCode() + this.dest.hashCode();
+	}
+	public boolean equals(Object inputMove) {
+		if(inputMove instanceof Move) {
+			Move testMove = (Move)inputMove;
+			if(this.init.equals(testMove.init) && this.dest.equals(testMove.dest)) {return true;} else {return false;}
+		} else {
+			return false;
+		}
 	}
 	
 	//basically exists just to allow you to call "static" methods without explicitly creating a move

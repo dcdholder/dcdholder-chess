@@ -1,6 +1,7 @@
 package dcdholder.chess;
 import java.util.*;
-import java.math.*;
+import java.util.regex.*;
+import java.io.*;
 
 //All conceivable moves for a given square are added to a list
 //This list is passed into an arbiter, which spits out the list of moves which are legal
@@ -17,7 +18,29 @@ public class GameState {
 	Set<Piece> chessPieces;
 	//this is a list because pieces that have been captured may have identical state at the point of capture to pieces that were captured earlier
 	List<Piece> graveyard;
+	
 	PieceColour currentPlayer;
+	
+	Player whitePlayer = new Human(PieceColour.WHITE);
+	Player blackPlayer = new Human(PieceColour.BLACK);
+	
+	ArbiterLogger logger = new ArbiterLogger();
+	
+	public static void main (String[] args) {
+		GameState currentGame = new GameState();
+		currentGame.drawStartScreenCli();
+		while(true) {
+			currentGame.drawBoardCli();
+			currentGame.currentPlayerMakeMove();
+			//resetEnPassants();
+		}
+	}
+	
+	public void drawStartScreenCli() {
+		System.out.println("Placeholder Title");
+		System.out.println("-----------------");
+		System.out.println("");
+	}
 	
 	public String createBoardString() {
 		String boardString = new String();
@@ -25,39 +48,40 @@ public class GameState {
 		//first, draw the board from the perspective of the white player, then draw depending on the current player
 		//board is initially in the correct left-to-right order with respect to white
 		for(int j=1;j<=8;j++) {
+			boardLine[j-1] = "";
 			for(int i=1;i<=8;i++) {
 				if(coordContainsPiece(new Coord(i,j))) {
-					boardLine[j-1] = boardLine + Character.toString(getPieceAtLocation(new Coord(i,j)).getRepChar());
+					boardLine[j-1] = boardLine[j-1] + Character.toString(getPieceAtLocation(new Coord(i,j)).getRepChar());
 				} else {
 					if((i+j)%2==0) {
-						boardLine[j-1] = boardLine + Character.toString('■');
+						boardLine[j-1] = boardLine[j-1] + Character.toString('■');
 					} else {
-						boardLine[j-1] = boardLine + Character.toString('□');
+						boardLine[j-1] = boardLine[j-1] + Character.toString('□');
 					}
 				}
 			}
 		}
 		//orient correctly for the current player
 		if(currentPlayer==PieceColour.WHITE) {
-			for(int j=1;j<=8;j++) {
-				List<String> tmpList = Arrays.asList(boardLine);
-				Collections.reverse(tmpList);
-				boardLine = tmpList.toArray(boardLine);
-			}
+			List<String> tmpList = Arrays.asList(boardLine);
+			Collections.reverse(tmpList);
+			boardLine = tmpList.toArray(boardLine);
 		} else if(currentPlayer==PieceColour.BLACK) {
 			for(int j=1;j<=8;j++) {
-				boardLine[j] = new StringBuilder(boardLine[j]).reverse().toString();
+				boardLine[j-1] = new StringBuilder(boardLine[j-1]).reverse().toString();
 			}
 		}
-		//transform into a single multiline string, so that this 
+		//transform into a single multi-line string, so that this 
 		for(int j=1;j<=8;j++) {
-			boardString = boardString + boardLine[j] + "\n";
+			boardString = boardString + boardLine[j-1] + "\n";
 		}
 		
 		return boardString;
 	}
 	
-	public void drawBoardCli() {System.out.println(createBoardString());}
+	public void drawBoardCli() {
+		System.out.println(createBoardString());
+	}
 	
 	public Set<Move> getAllLegalMoves() {
 		Set<Move> allLegalMoves = new HashSet<Move>();
@@ -72,11 +96,14 @@ public class GameState {
 			if(chessPiece.getPieceCoord().equals(removeCoord)) {
 				chessPieces.remove(chessPiece);
 				graveyard.add(chessPiece);
+				break;
 			}
 		}
 	}
 	
-	public void movePieceAtLocation(Coord initialCoord, Coord destCoord) {
+	public void movePieceAtLocation(Move moveAttempt) {
+		Coord initialCoord = moveAttempt.getInit();
+		Coord destCoord = moveAttempt.getDest();
 		boolean pieceFound = false;
 		
 		for(Piece chessPiece : chessPieces) {
@@ -89,6 +116,28 @@ public class GameState {
 		
 		if(pieceFound==false) {
 			throw new IllegalArgumentException("Was not able to move piece at location " + initialCoord.toString() + " since none exists");
+		}
+		//switch to next player for next turn
+		if(currentPlayer==PieceColour.WHITE) {
+			currentPlayer=PieceColour.BLACK;
+		} else {
+			currentPlayer=PieceColour.WHITE;
+		}
+	}
+	
+	public void currentPlayerMakeMove() {
+		if(currentPlayer==PieceColour.WHITE) {
+			whitePlayer.getAndMakeNextMove();
+		} else {
+			blackPlayer.getAndMakeNextMove();
+		}
+	}
+	
+	public boolean isMoveLegal(Move moveAttempt) {
+		if(coordContainsPiece(moveAttempt.getInit())) {
+			return getPieceAtLocation(moveAttempt.getInit()).isMoveLegalPieceSpecific(moveAttempt);
+		} else {
+			return false;
 		}
 	}
 	
@@ -123,8 +172,121 @@ public class GameState {
 		return pieceExistsAtCoord;
 	}
 	
+	//TODO: implement this
+	public boolean rowRangeOccupied(int boundA, int boundB) {
+		return true;
+	}
+	//TODO: implement this
+	public boolean rowRangeUnderAttack(int boundA, int boundB) {
+		return true;
+	}
+	
 	enum PieceColour {
 		WHITE,BLACK;
+	}
+	
+	interface playerSpecific {
+		Move getNextMove();
+		void getAndMakeNextMove();
+	}
+	abstract public class Player implements playerSpecific {
+		PieceColour playerColour;
+		
+		//TODO: rewrite the try-catch clauses
+		public void getAndMakeNextMove() {
+			Move nextMove;
+			while(true) {
+				try {
+					nextMove = getNextMove();
+					break;
+				} catch(IllegalArgumentException wrongMoveFormat) {
+					System.out.println("Wrong move format - try again");
+				}
+			}
+			while(!isMoveLegal(nextMove)) {
+				System.out.println(nextMove.toString());
+				System.out.println("Illegal move - try again");
+				while(true) {
+					try {
+						nextMove = getNextMove();
+						break;
+					} catch(IllegalArgumentException wrongMoveFormat) {
+						System.out.println("Wrong move format - try again");
+					}
+				}
+			}
+			movePieceAtLocation(nextMove);
+		}
+		
+		Player(PieceColour playerColour) {
+			this.playerColour = playerColour;
+		}
+	}
+	class Human extends Player {
+		String TMP_MOVE_PATTERN = "(?<initX>[0-9])(?<initY>[0-9])-(?<destX>[0-9])(?<destY>[0-9])";
+		
+		public Move getNextMove() {
+			BufferedReader cliInput = new BufferedReader(new InputStreamReader(System.in));
+			String inputLine = "";
+			
+			if(currentPlayer==PieceColour.WHITE) {
+				System.out.println("White to move: ");
+			} else if(currentPlayer==PieceColour.BLACK) {
+				System.out.println("Black to move: ");
+			}
+			
+			try {
+				inputLine = cliInput.readLine();
+			} catch(IOException e) {
+				e.printStackTrace();
+			}
+			
+			//TODO: use pgnParser format, this is just something temporary for initial testing
+			Pattern tmpMoveRegex = Pattern.compile(TMP_MOVE_PATTERN);
+			Matcher tmpMoveMatch = tmpMoveRegex.matcher(inputLine);
+			
+			if(inputLine.equals("q")) {
+				System.exit(0);
+			}
+			if(tmpMoveMatch.find()) {
+				Coord init = new Coord(Integer.parseInt(tmpMoveMatch.group("initX")),Integer.parseInt(tmpMoveMatch.group("initY")));
+				Coord dest = new Coord(Integer.parseInt(tmpMoveMatch.group("destX")),Integer.parseInt(tmpMoveMatch.group("destY")));
+				
+				System.out.println("");
+				
+				return new Move(init,dest);
+			} else {
+				throw new IllegalArgumentException("Wrong move format");
+			}
+		}
+		
+		Human(PieceColour playerColour) {
+			super(playerColour);
+		}
+	}
+	//TODO: implement an AI which simply plays random legal moves from the legal move list
+	//abstract class AI extends Player {
+	//	public Move getNextMove() {
+	//		
+	//	}
+	//}
+	//class randomMoveAI extends AI {
+	//}
+	//class oneFoldAI extends AI {
+	//}
+	
+	class ArbiterLogger {
+		//must be able to toggle to prevent AI move attempts from flooding output
+		boolean loggerOn;
+		
+		//will be made more sophisticated later
+		public void log(String arbiterMessage) {
+			System.out.println("");
+		}
+		
+		ArbiterLogger() {
+			loggerOn = true;
+		}
 	}
 	
 	abstract public class Piece implements PieceSpecific {
@@ -140,12 +302,10 @@ public class GameState {
 		
 		public Set<Move> formMovesFromRelativeCoordSet() {
 			Set<Move> testableMoveSet = new HashSet<Move>();
-			Move dummyMove = new Move();
-			Coord dummyCoord = new Coord();
 			
 			for(Coord relativeCoord : relativeCoordSet) {
-				if(dummyMove.wouldBeLegalMoveObjectFromRelative(this.pieceCoord,relativeCoord)) {
-					testableMoveSet.add(new Move(this.pieceCoord,dummyCoord.addCoords(this.pieceCoord,relativeCoord)));
+				if(Move.wouldBeLegalMoveObjectFromRelative(this.pieceCoord,relativeCoord)) {
+					testableMoveSet.add(new Move(new Coord(this.pieceCoord),Coord.addCoords(this.pieceCoord,relativeCoord)));
 				}
 			}
 			
@@ -153,29 +313,38 @@ public class GameState {
 		}
 		
 		public void makeMovePieceCommon(Move move) {
-			removePieceAtLocation(move.dest);
+			removePieceAtLocation(move.getDest());
 			pieceCoord = new Coord(move.getDest());
 		}
 		//TODO: this should probably call pieceSpecificArbiter, not the other way around
 		//TODO: rename "moveLegal" to "arbiter"
 		public boolean isMoveLegalCommon(Move moveAttempt) {
-			Piece currentPiece = getPieceAtLocation(moveAttempt.getInit());
+			@SuppressWarnings("unused") Piece currentPiece = getPieceAtLocation(moveAttempt.getInit());
 			boolean checkVertical = false, checkHorizontal = false;
-			int incHorizontal, incVertical;
-			int horizontalShift, verticalShift;
+			int incHorizontal=0, incVertical=0;
+			int horizontalShift=0, verticalShift=0;
 			int xToCheck, yToCheck;
 			
 			//check if the initial coords match the piece's
 			if(!moveAttempt.getInit().equals(this.pieceCoord)) {
 				return false;
 			}
+			//cannot move opponent's piece!
+			if(pieceColour!=currentPlayer) {
+				return false;
+			}
 			//check if the move is in the potential move list
-			if(!formMovesFromRelativeCoordSet().contains(moveAttempt)) { //check whether move is in movelist
+			if(!formMovesFromRelativeCoordSet().contains(moveAttempt)) {
+				for(Move tmpMove : formMovesFromRelativeCoordSet()) {
+					System.out.println(tmpMove.hashCode() + " " + tmpMove.equals(moveAttempt));
+				}
 				return false;
 			}
 			//cannot capture own piece!
-			if(getPieceAtLocation(moveAttempt.getDest()).pieceColour==currentPlayer) {
-				return false;
+			if(coordContainsPiece(moveAttempt.getDest())) {
+				if(getPieceAtLocation(moveAttempt.getDest()).pieceColour==currentPlayer) {
+					return false;
+				}
 			}
 			//check if there would be a collision
 			if(collisionChecking) {
@@ -247,6 +416,24 @@ public class GameState {
 			return true;
 		}
 		
+		public int hashCode() {
+			//the coordinates should be enough to identify a piece, but just to be safe...
+			int hash = pieceCoord.hashCode();
+			if(pieceColour==PieceColour.WHITE) {
+				hash++;
+			}
+			return hash;
+		}
+		public boolean equals(Object o) {
+			if(this == o) {return true;}
+			else if(o instanceof Piece) {
+				Piece testO = (Piece)o;
+				if(this.pieceCoord.equals(testO.pieceCoord)&&this.pieceColour==testO.pieceColour) {return true;} else {return false;}
+			} else {
+				return false;
+			}
+		}
+		
 		Piece(PieceColour pieceColour, Coord pieceCoord) {
 			this.pieceColour = pieceColour;
 			this.collisionChecking = false;
@@ -265,43 +452,71 @@ public class GameState {
 	
 	public class Pawn extends Piece {
 		private boolean lastMoveWasDouble;
+		public boolean wasLastMoveDouble() {
+			if(lastMoveWasDouble) {
+				return true;
+			} else {
+				return false;
+			}
+		}
 		
 		public boolean isMoveLegalPieceSpecific(Move moveAttempt) {
 			if(!isMoveLegalCommon(moveAttempt)) {
 				return false;
 			}
 			//only allow double moves from the home row
-			if() {
+			if(Move.absCoordDeltaFromMove(moveAttempt).equals(new Coord(0,2))) {
+				if(pieceColour==PieceColour.WHITE && moveAttempt.getInit().getY()!=2) {
+					return false;
+				} else if(pieceColour==PieceColour.BLACK && moveAttempt.getInit().getY()!=7) {
+					return false;
+				}
+			}
+			//only allow captures on diagonal moves
+			if(!moveAttempt.moveIsToDirection("diagonal")&&coordContainsPiece(moveAttempt.getDest())) {
 				return false;
 			}
-			//only allow captures moves if there is a piece to capture in the first place
-			if() {
-				return false;
+			//only allow captures moves if there is a piece to capture in the first place, or if it is an en passant
+			if(Move.absCoordDeltaFromMove(moveAttempt).equals(new Coord(1,1))) {
+				//only allow en passants if the other piece is a pawn, and its lastMoveWasDouble variable is set (needs to be reset every turn)
+				if(!coordContainsPiece(moveAttempt.getDest())) {
+					if(coordContainsPiece(new Coord(moveAttempt.getDest().getX(),moveAttempt.getInit().getY()))) {
+						Piece pieceToCapture = getPieceAtLocation(new Coord(moveAttempt.getDest().getX(),moveAttempt.getInit().getY()));
+						//determine whether the piece to be en-passanted is a pawn in the first place
+						if(pieceToCapture instanceof Pawn) {
+							//TODO: see if there's a cleaner way to do this than checking for subtype and making a cast
+							Pawn pawnToCapture = (Pawn)pieceToCapture;
+							//check if the last move of the opponent was a double move with the pawn to be captured
+							if(!pawnToCapture.lastMoveWasDouble) {
+								return false;
+							}
+						} else {
+							return false;
+						}
+					} else { //not an en-passant and is a capture move, but no piece to capture
+						return false;
+					}
+				}
 			}
-			//only allow en passants if the other piece is a pawn, and its lastMoveWasDouble variable is set (needs to be reset every turn)
-			if() {
-				return false;
-			}
+			return true;
 		}
 		//makeMove should only be called through attemptMove, which should validate it
 		public void makeMovePieceSpecific(Move move) {
-			Move dummyMove = new Move();
-			
 			//check if move is an en passant... if so, remove other piece
-			if(dummyMove.absCoordDeltaFromMove(move).equals(new Coord(1,1)) && !coordContainsPiece(move.dest)) {
-				if(dummyMove.moveIsToDirection(move,"right")) {
+			if(Move.absCoordDeltaFromMove(move).equals(new Coord(1,1)) && !coordContainsPiece(move.getDest())) {
+				if(move.moveIsToDirection("right")) {
 					removePieceAtLocation(new Coord(move.getInit().getX()+1,move.getInit().getY()));
-				} else if (dummyMove.moveIsToDirection(move,"left")) {
+				} else if (move.moveIsToDirection("left")) {
 					removePieceAtLocation(new Coord(move.getInit().getX()-1,move.getInit().getY()));
 				}
 			}
 			makeMovePieceCommon(move);
 			//check if the last move was a double move
-			if(dummyMove.absCoordDeltaFromMove(move).equals(new Coord(0,2))) {this.lastMoveWasDouble=true;}
+			if(Move.absCoordDeltaFromMove(move).equals(new Coord(0,2))) {this.lastMoveWasDouble=true;}
 			//take double moves off the table if the piece has already been moved
 			relativeCoordSet.remove(new Coord(0,2));
 			//check if the move results in pawn promotion... if so, create new piece and remove self
-			if((pieceColour==PieceColour.WHITE && move.dest.getY()==8) || (pieceColour==PieceColour.BLACK && move.dest.getY()==1)) {
+			if((pieceColour==PieceColour.WHITE && move.getDest().getY()==8) || (pieceColour==PieceColour.BLACK && move.getDest().getY()==1)) {
 				//produce a new queen at current location and delete self
 				chessPieces.add(new Queen(pieceColour,move.getDest()));
 				chessPieces.remove(this);
@@ -311,13 +526,31 @@ public class GameState {
 			Set<Coord> testableRelativeCoord = new HashSet<Coord>();
 			
 			//forward moves
-			testableRelativeCoord.add(new Coord(0,1));
-			testableRelativeCoord.add(new Coord(0,2));
+			if(pieceColour==PieceColour.WHITE) {
+				testableRelativeCoord.add(new Coord(0,1));
+				testableRelativeCoord.add(new Coord(0,2));
+			} else if(pieceColour==PieceColour.BLACK) {
+				testableRelativeCoord.add(new Coord(0,-1));
+				testableRelativeCoord.add(new Coord(0,-2));
+			}
 			//capture moves
 			testableRelativeCoord.add(new Coord(1,1));
 			testableRelativeCoord.add(new Coord(-1,1));
 			
 			return testableRelativeCoord;
+		}
+		
+		public int hashCode() {
+			return super.hashCode();
+		}
+		public boolean equals(Object o) {
+			if(this == o) {return true;}
+			else if(o instanceof Pawn) {
+				Pawn testPawn = (Pawn)o;
+				if(super.equals(testPawn)) {return true;} else {return false;}
+			} else {
+				return false;
+			}
 		}
 		
 		//TODO: only used when dummy pieces are necessary: find a way to obviate
@@ -341,6 +574,13 @@ public class GameState {
 	}
 	public class Rook extends Piece {
 		boolean hasMoved;
+		public boolean hasRookMoved() {
+			if(hasMoved) {
+				return true;
+			} else {
+				return false;
+			}
+		}
 		
 		public void makeMovePieceSpecific(Move move) {
 			makeMovePieceCommon(move);
@@ -350,7 +590,7 @@ public class GameState {
 			if(!isMoveLegalCommon(moveAttempt)) {
 				return false;
 			} else {
-				return false;
+				return true;
 			}
 		}
 		public Set<Coord> testableRelativeCoord() {
@@ -364,6 +604,17 @@ public class GameState {
 			}
 			
 			return testableRelativeCoord;
+		}
+		
+		public int hashCode() {return super.hashCode();}
+		public boolean equals(Object o) {
+			if(this == o) {return true;}
+			else if(o instanceof Rook) {
+				Rook testRook = (Rook)o;
+				if(super.equals(testRook)) {return true;} else {return false;}
+			} else {
+				return false;
+			}
 		}
 		
 		Rook(PieceColour pieceColour,Coord pieceCoord) {
@@ -386,7 +637,7 @@ public class GameState {
 			if(!isMoveLegalCommon(moveAttempt)) {
 				return false;
 			} else {
-				return false;
+				return true;
 			}
 		}
 		public Set<Coord> testableRelativeCoord() {
@@ -400,6 +651,17 @@ public class GameState {
 			}
 			
 			return testableRelativeCoord;
+		}
+		
+		public int hashCode() {return super.hashCode();}
+		public boolean equals(Object o) {
+			if(this == o) {return true;}
+			else if(o instanceof Bishop) {
+				Bishop testBishop = (Bishop)o;
+				if(super.equals(testBishop)) {return true;} else {return false;}
+			} else {
+				return false;
+			}
 		}
 		
 		Bishop(PieceColour pieceColour,Coord pieceCoord) {
@@ -421,7 +683,7 @@ public class GameState {
 			if(!isMoveLegalCommon(moveAttempt)) {
 				return false;
 			} else {
-				return false;
+				return true;
 			}
 		}
 		public Set<Coord> testableRelativeCoord() {
@@ -439,6 +701,17 @@ public class GameState {
 			testableRelativeCoord.add(new Coord(-2,-1));
 			
 			return testableRelativeCoord;
+		}
+		
+		public int hashCode() {return super.hashCode();}
+		public boolean equals(Object o) {
+			if(this == o) {return true;}
+			else if(o instanceof Knight) {
+				Knight testKnight = (Knight)o;
+				if(super.equals(testKnight)) {return true;} else {return false;}
+			} else {
+				return false;
+			}
 		}
 		
 		Knight(PieceColour pieceColour,Coord pieceCoord) {
@@ -460,7 +733,7 @@ public class GameState {
 			if(!isMoveLegalCommon(moveAttempt)) {
 				return false;
 			} else {
-				return false;
+				return true;
 			}
 		}
 		public Set<Coord> testableRelativeCoord() {
@@ -484,6 +757,17 @@ public class GameState {
 			return testableRelativeCoord;
 		}
 		
+		public int hashCode() {return super.hashCode();}
+		public boolean equals(Object o) {
+			if(this == o) {return true;}
+			else if(o instanceof Knight) {
+				Queen testQueen = (Queen)o;
+				if(super.equals(testQueen)) {return true;} else {return false;}
+			} else {
+				return false;
+			}
+		}
+		
 		Queen(PieceColour pieceColour,Coord pieceCoord) {
 			super(pieceColour,pieceCoord);
 			if(pieceColour==PieceColour.WHITE) {
@@ -498,27 +782,25 @@ public class GameState {
 		boolean hasMoved;
 		
 		public void makeMovePieceSpecific(Move move) {
-			Move dummyMove = new Move();
-			
 			makeMovePieceCommon(move);
 			this.hasMoved = true;
 			//remove castle from list of possible moves
 			relativeCoordSet.remove(new Coord(2,0));
 			relativeCoordSet.remove(new Coord(-2,0));
 			//check if you are castling
-			if(dummyMove.absCoordDeltaFromMove(move)==new Coord(2,0)) {
+			if(Move.absCoordDeltaFromMove(move).equals(new Coord(2,0))) {
 				//castle with the rook located at the rook's origin which is in the direction of the castle
-				if(dummyMove.moveIsToDirection(move,"right")) {
+				if(move.moveIsToDirection("right")) {
 					if(pieceColour==PieceColour.WHITE) {
-						movePieceAtLocation(new Coord(8,1),new Coord(6,1));
+						movePieceAtLocation(new Move(new Coord(8,1),new Coord(6,1)));
 					} else if(pieceColour==PieceColour.BLACK) {
-						movePieceAtLocation(new Coord(8,8),new Coord(6,8));
+						movePieceAtLocation(new Move(new Coord(8,8),new Coord(6,8)));
 					}
-				} else if (dummyMove.moveIsToDirection(move,"left")) {
+				} else if (move.moveIsToDirection("left")) {
 					if(pieceColour==PieceColour.WHITE) {
-						movePieceAtLocation(new Coord(1,1),new Coord(4,1));
+						movePieceAtLocation(new Move(new Coord(1,1),new Coord(4,1)));
 					} else if(pieceColour==PieceColour.BLACK) {
-						movePieceAtLocation(new Coord(1,8),new Coord(4,8));
+						movePieceAtLocation(new Move(new Coord(1,8),new Coord(4,8)));
 					}
 				}
 			}
@@ -528,24 +810,56 @@ public class GameState {
 				return false;
 			}
 			//check if the move is an attempted castle
-			if() {
-				//if the destination is not the current player's rook
-				if() {
+			if(Move.absCoordDeltaFromMove(moveAttempt).equals(new Coord(2,0))) {
+				Coord legalQueensideRookLocation = new Coord();
+				Coord legalKingsideRookLocation = new Coord();
+				Coord rookLocation = new Coord();
+				
+				//get the legal rook castling positions for the piece's colour
+				if(pieceColour==PieceColour.WHITE) {
+					legalQueensideRookLocation = new Coord(8,1);
+					legalKingsideRookLocation = new Coord(1,1);
+				} else if(pieceColour==PieceColour.BLACK) {
+					legalQueensideRookLocation = new Coord(8,8);
+					legalKingsideRookLocation = new Coord(1,8);
+				}
+				//check that the rook being moved towards exists
+				if(moveAttempt.moveIsToDirection("right")) {
+					rookLocation = new Coord(legalQueensideRookLocation);
+				}
+				if(moveAttempt.moveIsToDirection("left")) {
+					rookLocation = new Coord(legalKingsideRookLocation);
+				}
+				//check that a piece exists at that location and is in fact a rook
+				//check that the rook being moved towards has not yet moved
+				if(coordContainsPiece(rookLocation)) {
+					if(getPieceAtLocation(rookLocation) instanceof Rook) {
+						//TODO: see if there's a way to work around having to cast
+						//TODO: consider adding rook colour checking, even though enemy rooks in this position would fail hasMoved check
+						Rook castlingRook = (Rook)getPieceAtLocation(rookLocation);
+						if(castlingRook.hasRookMoved()) {
+							return false;
+						}
+					} else {
+						return false;
+					}
+				} else {
 					return false;
 				}
 				//if the king has already moved
-				if() {
+				if(hasMoved) {
 					return false;
 				}
 				//if any of the squares between the two are occupied
-				if() {
-					
+				if(rowRangeOccupied(moveAttempt.getInit().getX(),moveAttempt.getDest().getX())) {
+					return false;
 				}
-				//if any of the squares between the two are under attack
-				if() {
-					
+				//if any of the squares between the two (and including those two) are under attack
+				if(rowRangeUnderAttack(moveAttempt.getInit().getX(),moveAttempt.getDest().getX())) {
+					return false;
 				}
 			}
+			return true;
 		}
 		public Set<Coord> testableRelativeCoord() {
 			Set<Coord> testableRelativeCoord = new HashSet<Coord>();
@@ -562,6 +876,17 @@ public class GameState {
 			return testableRelativeCoord;
 		}
 		
+		public int hashCode() {return super.hashCode();}
+		public boolean equals(Object o) {
+			if(this == o) {return true;}
+			else if(o instanceof King) {
+				King testKing = (King)o;
+				if(super.equals(testKing)) {return true;} else {return false;}
+			} else {
+				return false;
+			}
+		}
+		
 		King(PieceColour pieceColour,Coord pieceCoord) {
 			super(pieceColour,pieceCoord);
 			if(pieceColour==PieceColour.WHITE) {
@@ -575,6 +900,8 @@ public class GameState {
 	}
 	
 	GameState() {
+		this.currentPlayer = PieceColour.WHITE;
+		
 		this.chessPieces = new HashSet<Piece>();
 		this.graveyard = new ArrayList<Piece>();
 		
@@ -588,7 +915,7 @@ public class GameState {
 		chessPieces.add(new King(PieceColour.BLACK,new Coord(5,8)));
 		//add the queens
 		chessPieces.add(new Queen(PieceColour.WHITE,new Coord(4,1)));
-		chessPieces.add(new Queen(PieceColour.WHITE,new Coord(4,8)));
+		chessPieces.add(new Queen(PieceColour.BLACK,new Coord(4,8)));
 		//add the bishops
 		chessPieces.add(new Bishop(PieceColour.WHITE,new Coord(3,1)));
 		chessPieces.add(new Bishop(PieceColour.WHITE,new Coord(6,1)));
@@ -600,9 +927,9 @@ public class GameState {
 		chessPieces.add(new Rook(PieceColour.BLACK,new Coord(1,8)));
 		chessPieces.add(new Rook(PieceColour.BLACK,new Coord(8,8)));
 		//add the knights
-		chessPieces.add(new Rook(PieceColour.WHITE,new Coord(2,1)));
-		chessPieces.add(new Rook(PieceColour.WHITE,new Coord(7,1)));
-		chessPieces.add(new Rook(PieceColour.BLACK,new Coord(2,8)));
-		chessPieces.add(new Rook(PieceColour.BLACK,new Coord(7,8)));
+		chessPieces.add(new Knight(PieceColour.WHITE,new Coord(2,1)));
+		chessPieces.add(new Knight(PieceColour.WHITE,new Coord(7,1)));
+		chessPieces.add(new Knight(PieceColour.BLACK,new Coord(2,8)));
+		chessPieces.add(new Knight(PieceColour.BLACK,new Coord(7,8)));
 	}
 }

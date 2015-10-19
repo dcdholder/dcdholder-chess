@@ -14,14 +14,14 @@ public class Coord {
 	
 	boolean bothDimsBetween1And8() {if((this.x<=8&&this.x>=1)&&(this.y<=8&&this.y>=1)) {return true;} else {return false;}}
 	
-	public Coord addCoords(Coord coordA, Coord coordB) {
+	static public Coord addCoords(Coord coordA, Coord coordB) {
 		int newCoordX = coordA.x + coordB.x;
 		int newCoordY = coordA.y + coordB.y;
 		
 		return new Coord(newCoordX,newCoordY);
 	}
 	
-	public Coord subCoords(Coord coordA, Coord coordB) {
+	static public Coord subCoords(Coord coordA, Coord coordB) {
 		int newCoordX = coordB.x - coordA.x;
 		int newCoordY = coordB.y - coordA.y;
 		
@@ -30,10 +30,18 @@ public class Coord {
 	
 	public Coord absCoord() {return new Coord(Math.abs(this.x),Math.abs(this.y));}
 	
-	public String toString() {return "X value: " + this.x + " ,Y value: " + this.y;}
+	public String toString() {return "X value: " + this.x + ", Y value: " + this.y;}
 	
-	public boolean equals(Coord inputCoord) {
-		if(this.x==inputCoord.x && this.y==inputCoord.y) {return true;} else {return false;}
+	public int hashCode() {
+		return this.x+this.y;
+	}
+	public boolean equals(Object o) {
+		if(o==this) {return true;}
+		if(o instanceof Coord) {
+			Coord testCoord = (Coord)o;
+			if(this.x==testCoord.x && this.y==testCoord.y) {return true;} else {return false;}
+		}
+		return false;
 	}
 	
 	Coord() {
