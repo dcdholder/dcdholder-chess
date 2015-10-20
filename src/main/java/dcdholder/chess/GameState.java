@@ -35,10 +35,30 @@ public class GameState {
 			//resetEnPassants();
 		}
 	}
+	/*
+	public void configScreenCli() {
+		System.out.println("Enter a player config, or enter 'q' to quit: ");
+		
+		//TODO: add some console input and regexing here, do some looping
+		//will look something like this -> h-c (human white player, computer black player)
+		
+		if(whiteConfig=="Human") {
+			whitePlayer = new Human(PieceColour.WHITE);
+		} else if(whiteConfig=="RngCpu") {
+			whitePlayer = new RngCpu(PieceColour.WHITE);
+		}
+		if(blackConfig=="Human") {
+			blackPlayer = new Human(PieceColour.BLACK);
+		} else if(blackConfig=="RngCpu") {
+			blackPlayer = new RngCpu(PiceColour.BLACK);
+		}
+		
+		drawStartScreenCli();
+	 */
 	
 	public void drawStartScreenCli() {
-		System.out.println("Placeholder Title");
-		System.out.println("-----------------");
+		System.out.println("DC-CHESS");
+		System.out.println("--------");
 		System.out.println("");
 	}
 	
@@ -86,9 +106,21 @@ public class GameState {
 	public Set<Move> getAllLegalMoves() {
 		Set<Move> allLegalMoves = new HashSet<Move>();
 		
-		//fill this in
+		for(Piece piece : chessPieces) {
+			allLegalMoves.addAll(piece.getLegalMoves());
+		}
 		
 		return allLegalMoves;
+	}
+	
+	public Set<Move> getAllLegalMovesCheckless() {
+		Set<Move> allLegalMovesCheckless = new HashSet<Move>();
+		
+		for(Piece piece : chessPieces) {
+			allLegalMovesCheckless.addAll(piece.getLegalMovesCheckless());
+		}
+		
+		return allLegalMovesCheckless;
 	}
 	
 	public void removePieceAtLocation(Coord removeCoord) {
@@ -133,12 +165,40 @@ public class GameState {
 		}
 	}
 	
-	public boolean isMoveLegal(Move moveAttempt) {
+	public boolean isMoveLegalCheckless(Move moveAttempt) {
 		if(coordContainsPiece(moveAttempt.getInit())) {
 			return getPieceAtLocation(moveAttempt.getInit()).isMoveLegalPieceSpecific(moveAttempt);
 		} else {
 			return false;
 		}
+	}
+	
+	//TODO: force failure until check checking is complete
+	public boolean isMoveLegalWithCheck(Move moveAttempt) {
+		if(!isMoveLegalCheckless(moveAttempt)) {
+			return false;
+		}
+		GameState checkVerificationGame = new GameState(this); //create temporary instance of game so as to not risk corrupting game state
+		if(coordContainsPiece(moveAttempt.getInit())) {
+			checkVerificationGame.movePieceAtLocation(moveAttempt); //simulate making the move in a temporary game instance
+		} else {
+			return false;
+		}
+		if(checkVerificationGame.opponentIsInCheck()) {
+			return false;
+		}
+		
+		return false; //TODO: change to 'return true' once everything is ready
+	}
+	
+	public boolean isMoveToSquareLegalCheckless(Coord destCoord) {
+		Set<Move> legalMoves = getAllLegalMovesCheckless();
+		for(Move move : legalMoves) {
+			if(move.getDest().equals(destCoord)) {
+				return true;
+			}
+		}
+		return false;
 	}
 	
 	public Piece getPieceAtLocation(Coord pieceCoord) {
@@ -172,13 +232,66 @@ public class GameState {
 		return pieceExistsAtCoord;
 	}
 	
-	//TODO: implement this
-	public boolean rowRangeOccupied(int boundA, int boundB) {
+	/*TODO: implement this
+	public boolean rowRangeOccupied(int fileBoundA, int fileBoundB, int rank) {
+		
+		
 		return true;
 	}
-	//TODO: implement this
-	public boolean rowRangeUnderAttack(int boundA, int boundB) {
+	*/
+	/*TODO: implement this
+	//public boolean rowRangeUnderAttack(int fileBoundA, int fileBoundB, int rank) {
+		
+		
 		return true;
+	}
+	*/
+	
+	//TODO: cut down on code duplication
+	//public boolean squareUnderAttackByOpponent() {
+		//the same as squareUnderAttackByCurrent(), but currentPlayer is manually switched in the new game
+	//}
+	public boolean squareUnderAttackByCurrent(Coord evalCoord) {
+		//check if there is an opponent piece already at that position
+		//if not, generate an opponent pawn there (remove once done)
+		//if a move to capture that piece meets checkless legality criteria, the square is under attack
+		if(coordContainsPiece(evalCoord)) {
+			Piece evalPiece = getPieceAtLocation(evalCoord);
+			if(evalPiece.pieceColour==getOpponentColour()) {
+				if(isMoveToSquareLegalCheckless(evalCoord)) {return true;} else {return false;}//shallow move legality checking
+			} else {
+				return false; //the piece is owned by the current player, the current player cannot attack it
+			}
+		} else {
+			chessPieces.add(new Pawn(getOpponentColour(),evalCoord)); //temporarily add a pawn to check if it can be captured by the current player
+			if(isMoveToSquareLegalCheckless(evalCoord)) {return true;} else {return false;}
+		}
+	}
+	
+	public boolean opponentIsInCheck() {
+		//find the opponent's king, check if it is under attack by the current player
+		boolean kingFound=false;
+		boolean opponentInCheck=false;
+		
+		for(Piece piece : chessPieces) {
+			if(piece.pieceColour==getOpponentColour() && (piece instanceof King)) {
+				opponentInCheck = squareUnderAttackByCurrent(piece.pieceCoord);
+				kingFound=true;
+				break;
+			}
+		}
+		if(!kingFound) {
+			throw new IllegalStateException("No opposing king of colour " + getOpponentColour() + " found on the board");
+		}
+		return opponentInCheck;
+	}
+	
+	public PieceColour getOpponentColour() {
+		if(currentPlayer==PieceColour.WHITE) {
+			return PieceColour.BLACK;
+		} else {
+			return PieceColour.WHITE;
+		}
 	}
 	
 	enum PieceColour {
@@ -203,7 +316,7 @@ public class GameState {
 					System.out.println("Wrong move format - try again");
 				}
 			}
-			while(!isMoveLegal(nextMove)) {
+			while(!isMoveLegalCheckless(nextMove)) {
 				System.out.println(nextMove.toString());
 				System.out.println("Illegal move - try again");
 				while(true) {
@@ -218,6 +331,9 @@ public class GameState {
 			movePieceAtLocation(nextMove);
 		}
 		
+		Player(Player copyPlayer) {
+			this.playerColour = copyPlayer.playerColour;
+		}
 		Player(PieceColour playerColour) {
 			this.playerColour = playerColour;
 		}
@@ -260,19 +376,20 @@ public class GameState {
 			}
 		}
 		
+		Human(Human copyHuman) {super(copyHuman);}
 		Human(PieceColour playerColour) {
 			super(playerColour);
 		}
 	}
 	//TODO: implement an AI which simply plays random legal moves from the legal move list
-	//abstract class AI extends Player {
+	//abstract class Ai extends Player {
 	//	public Move getNextMove() {
 	//		
 	//	}
 	//}
-	//class randomMoveAI extends AI {
+	//class rngAi extends Ai {
 	//}
-	//class oneFoldAI extends AI {
+	//class oneFoldAi extends Ai {
 	//}
 	
 	class ArbiterLogger {
@@ -284,6 +401,10 @@ public class GameState {
 			System.out.println("");
 		}
 		
+		//does nothing extra for now, may need to copy log information in the future
+		ArbiterLogger(ArbiterLogger copyLogger) {
+			this();
+		}
 		ArbiterLogger() {
 			loggerOn = true;
 		}
@@ -300,6 +421,28 @@ public class GameState {
 		public Coord getPieceCoord() {return this.pieceCoord;}
 		public char getRepChar() {return this.REP_CHAR;}
 		
+		public Set<Move> getLegalMoves() {
+			Set<Move> initialMoves = formMovesFromRelativeCoordSet();
+			Set<Move> finalMoves = new HashSet<>();
+			
+			for(Move move : initialMoves) {
+				if(isMoveLegalWithCheck(move)) { //TESTING
+					finalMoves.add(move);
+				}
+			}
+			return finalMoves;
+		}
+		public Set<Move> getLegalMovesCheckless() {
+			Set<Move> initialMoves = formMovesFromRelativeCoordSet();
+			Set<Move> finalMoves = new HashSet<>();
+			
+			for(Move move : initialMoves) {
+				if(isMoveLegalCheckless(move)) {
+					finalMoves.add(move);
+				}
+			}
+			return finalMoves;
+		}
 		public Set<Move> formMovesFromRelativeCoordSet() {
 			Set<Move> testableMoveSet = new HashSet<Move>();
 			
@@ -434,6 +577,11 @@ public class GameState {
 			}
 		}
 		
+		Piece(Piece copyPiece) {
+			this.pieceColour = copyPiece.pieceColour;
+			this.collisionChecking = copyPiece.collisionChecking;
+			this.pieceCoord = new Coord(copyPiece.pieceCoord);
+		}
 		Piece(PieceColour pieceColour, Coord pieceCoord) {
 			this.pieceColour = pieceColour;
 			this.collisionChecking = false;
@@ -553,6 +701,11 @@ public class GameState {
 			}
 		}
 		
+		Pawn(Piece copyPawn) {
+			super(copyPawn);
+			Pawn castPawn = (Pawn)copyPawn;
+			this.lastMoveWasDouble = castPawn.lastMoveWasDouble;
+		}
 		//TODO: only used when dummy pieces are necessary: find a way to obviate
 		Pawn() {
 			super(PieceColour.WHITE,new Coord(1,1));
@@ -617,6 +770,11 @@ public class GameState {
 			}
 		}
 		
+		Rook(Piece copyRook) {
+			super(copyRook);
+			Rook castRook = (Rook)copyRook;
+			this.hasMoved = castRook.hasMoved;
+		}
 		Rook(PieceColour pieceColour,Coord pieceCoord) {
 			super(pieceColour,pieceCoord);
 			if(pieceColour==PieceColour.WHITE) {
@@ -664,6 +822,9 @@ public class GameState {
 			}
 		}
 		
+		Bishop(Piece copyBishop) {
+			super(copyBishop);
+		}
 		Bishop(PieceColour pieceColour,Coord pieceCoord) {
 			super(pieceColour,pieceCoord);
 			if(pieceColour==PieceColour.WHITE) {
@@ -714,6 +875,9 @@ public class GameState {
 			}
 		}
 		
+		Knight(Piece copyKnight) {
+			super(copyKnight);
+		}
 		Knight(PieceColour pieceColour,Coord pieceCoord) {
 			super(pieceColour,pieceCoord);
 			if(pieceColour==PieceColour.WHITE) {
@@ -768,6 +932,9 @@ public class GameState {
 			}
 		}
 		
+		Queen(Piece copyQueen) {
+			super(copyQueen);
+		}
 		Queen(PieceColour pieceColour,Coord pieceCoord) {
 			super(pieceColour,pieceCoord);
 			if(pieceColour==PieceColour.WHITE) {
@@ -850,14 +1017,15 @@ public class GameState {
 				if(hasMoved) {
 					return false;
 				}
-				//if any of the squares between the two are occupied
-				if(rowRangeOccupied(moveAttempt.getInit().getX(),moveAttempt.getDest().getX())) {
-					return false;
-				}
-				//if any of the squares between the two (and including those two) are under attack
-				if(rowRangeUnderAttack(moveAttempt.getInit().getX(),moveAttempt.getDest().getX())) {
-					return false;
-				}
+				//TODO: get castling working
+				//TODO: if any of the squares between the two are occupied
+				//if(rowRangeOccupied(moveAttempt.getInit().getX(),moveAttempt.getDest().getX())) {
+				//	return false;
+				//}
+				//TODO: if any of the squares between the two (and including those two) are under attack
+				//if(rowRangeUnderAttack(moveAttempt.getInit().getX(),moveAttempt.getDest().getX())) {
+				//	return false;
+				//}
 			}
 			return true;
 		}
@@ -887,6 +1055,11 @@ public class GameState {
 			}
 		}
 		
+		King(Piece copyKing) {
+			super(copyKing);
+			King castKing = (King)copyKing;
+			this.hasMoved = castKing.hasMoved;
+		}
 		King(PieceColour pieceColour,Coord pieceCoord) {
 			super(pieceColour,pieceCoord);
 			if(pieceColour==PieceColour.WHITE) {
@@ -897,6 +1070,37 @@ public class GameState {
 			this.hasMoved = false;
 			this.relativeCoordSet = testableRelativeCoord();
 		}
+	}
+	
+	GameState(GameState gameCopy) {
+		this.currentPlayer = gameCopy.currentPlayer;
+		
+		//deep copy of pieces
+		this.chessPieces = new HashSet<Piece>();
+		this.graveyard = new ArrayList<Piece>();
+		//TODO: EXTREMELY inelegant, can we work around inability to instantiate abstract class?
+		for(Piece chessPiece : gameCopy.chessPieces) {
+			if(chessPiece instanceof Pawn) {this.chessPieces.add(new Pawn(chessPiece));
+			} else if(chessPiece instanceof Knight) {this.chessPieces.add(new Knight(chessPiece));
+			} else if(chessPiece instanceof Bishop) {this.chessPieces.add(new Bishop(chessPiece));
+			} else if(chessPiece instanceof Rook) {this.chessPieces.add(new Rook(chessPiece));
+			} else if(chessPiece instanceof Queen) {this.chessPieces.add(new Queen(chessPiece));
+			} else if(chessPiece instanceof King) {this.chessPieces.add(new King(chessPiece));}
+		}
+		for(Piece graveyardPiece : gameCopy.graveyard) {
+			if(graveyardPiece instanceof Pawn) {this.graveyard.add(new Pawn(graveyardPiece));
+			} else if(graveyardPiece instanceof Knight) {this.graveyard.add(new Knight(graveyardPiece));
+			} else if(graveyardPiece instanceof Bishop) {this.graveyard.add(new Bishop(graveyardPiece));
+			} else if(graveyardPiece instanceof Rook) {this.graveyard.add(new Rook(graveyardPiece));
+			} else if(graveyardPiece instanceof Queen) {this.graveyard.add(new Queen(graveyardPiece));
+			} else if(graveyardPiece instanceof King) {this.graveyard.add(new King(graveyardPiece));}
+		}
+		
+		//TODO: fix instantiation here before computer players become an option
+		this.whitePlayer = new Human((Human)gameCopy.whitePlayer);
+		this.blackPlayer = new Human((Human)gameCopy.blackPlayer);
+		
+		this.logger = new ArbiterLogger(gameCopy.logger);
 	}
 	
 	GameState() {
