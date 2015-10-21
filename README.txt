@@ -34,3 +34,18 @@ DC-CHESS GAME PLAN
 - Confirm that the new AIs beat the old ones a certain percentage of the time
 - Check into prod/master
 - Networked play? Client-to-AI-server play? GUI version (who cares)?
+
+FIRST "SUCCESSFUL" AI vs. AI MATCH
+----------------------------------
+<game>
+7■□■□■□■□
+6□■□■♟■□■
+5♟♟♙♗■♕■□
+4♙■□■□■♟♟
+3■□♙♖♙♙■♙
+2□■♞♘□♙□■
+1■♘■□♔□♖□
+ abcdefgh
+
+White player wins after 110 plies
+</game>
