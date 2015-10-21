@@ -1,4 +1,7 @@
+For now, use the following format for initial game config:
+${whitePlayerType}-${blackPlayerType}
+ex. h-c to play in (h)uman vs. (c)omputer mode 
 Until I get the PGN parser working, use the following move format for CLI play:
-${initialFileNum}${initialRankNum}-${destFileNum}${destRankNum}
-ex. 12-13 to move the leftmost white pawn one square from starting position
+${initialFileChar}${initialRankNum}-${destFileChar}${destRankNum}
+ex. a2-a3 to move the leftmost white pawn one square from starting position
 Enter 'q' at any time to quit.

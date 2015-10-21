@@ -1,4 +1,5 @@
 package dcdholder.chess;
+import java.util.*;
 
 //TODO: fix Coord methods which "fake" the static modifier
 public class Coord {
@@ -26,6 +27,36 @@ public class Coord {
 		int newCoordY = coordB.y - coordA.y;
 		
 		return new Coord(newCoordX,newCoordY);
+	}
+	
+	static public Set<Coord> allCoordsBetweenFiles(int fileBoundA,int fileBoundB,int rank) {
+		Set<Coord> coordsBetweenFiles = new HashSet<Coord>();
+		
+		if(fileBoundB>=fileBoundA) {
+			for(int i=fileBoundA;i<=fileBoundB;i++) {
+				coordsBetweenFiles.add(new Coord(i,rank));
+			}
+		} else {
+			for(int i=fileBoundB;i<=fileBoundA;i++) {
+				coordsBetweenFiles.add(new Coord(i,rank));
+			}
+		}
+		return coordsBetweenFiles;
+	}
+	
+	static public Set<Coord> allCoordsBetweenRanks(int rankBoundA,int rankBoundB,int file) {
+		Set<Coord> coordsBetweenRanks = new HashSet<Coord>();
+		
+		if(rankBoundB>=rankBoundA) {
+			for(int j=rankBoundA;j<=rankBoundB;j++) {
+				coordsBetweenRanks.add(new Coord(file,j));
+			}
+		} else {
+			for(int j=rankBoundB;j<=rankBoundA;j++) {
+				coordsBetweenRanks.add(new Coord(file,j));
+			}
+		}
+		return coordsBetweenRanks;
 	}
 	
 	public Coord absCoord() {return new Coord(Math.abs(this.x),Math.abs(this.y));}

@@ -20,6 +20,8 @@ public class GameState {
 	List<Piece> graveyard;
 	
 	PieceColour currentPlayer;
+	boolean gameOver,isCheckmate,isStalemate;
+	int numPlies = 0;
 	
 	Player whitePlayer = new Human(PieceColour.WHITE);
 	Player blackPlayer = new Human(PieceColour.BLACK);
@@ -29,32 +31,67 @@ public class GameState {
 	public static void main (String[] args) {
 		GameState currentGame = new GameState();
 		currentGame.drawStartScreenCli();
+		currentGame.drawConfigScreenCli();
 		while(true) {
-			currentGame.drawBoardCli();
-			currentGame.currentPlayerMakeMove();
-			//resetEnPassants();
+			currentGame.updateGameState();
+			//currentGame.drawBoardCli();
+			if(!currentGame.gameOver) {
+				currentGame.currentPlayerMakeMove();
+			} else {
+				break;
+			}
 		}
+		currentGame.drawBoardCli();
+		currentGame.drawEndgameScreenCli();
 	}
-	/*
-	public void configScreenCli() {
-		System.out.println("Enter a player config, or enter 'q' to quit: ");
-		
-		//TODO: add some console input and regexing here, do some looping
-		//will look something like this -> h-c (human white player, computer black player)
-		
-		if(whiteConfig=="Human") {
-			whitePlayer = new Human(PieceColour.WHITE);
-		} else if(whiteConfig=="RngCpu") {
-			whitePlayer = new RngCpu(PieceColour.WHITE);
+
+	//TODO: see if I can make this a little less verbose
+	public void drawConfigScreenCli() {
+		//TODO: decide whether I want to do this with try-catch clauses or not
+		while(true) {
+			try {
+				//will look something like this -> h-c (human white player, computer black player)
+				System.out.println("Enter a player config, or enter 'q' to quit: ");
+				BufferedReader cliInput = new BufferedReader(new InputStreamReader(System.in));
+				String inputLine = "";
+				
+				try {
+					inputLine = cliInput.readLine();
+				} catch(IOException e) {
+					e.printStackTrace();
+				}
+				
+				Pattern tmpConfigRegex = Pattern.compile("(?<whitePlayer>[hc])-(?<blackPlayer>[hc])");
+				Matcher tmpConfigMatch = tmpConfigRegex.matcher(inputLine);
+				
+				if(inputLine.equals("q")) {
+					System.exit(0);
+				}
+				if(tmpConfigMatch.find()) {
+					if(tmpConfigMatch.group("whitePlayer").equals("h")) {
+						whitePlayer = new Human(PieceColour.WHITE);
+					} else if(tmpConfigMatch.group("whitePlayer").equals("c")) {
+						whitePlayer = new RngAi(PieceColour.WHITE);
+					} else {
+						throw new IllegalArgumentException("White player type declaration must be either 'h' or 'c'");
+					}
+					if(tmpConfigMatch.group("blackPlayer").equals("h")) {
+						blackPlayer = new Human(PieceColour.BLACK);
+					} else if(tmpConfigMatch.group("blackPlayer").equals("c")) {
+						blackPlayer = new RngAi(PieceColour.BLACK);
+					} else {
+						throw new IllegalArgumentException("Black player type declaration must be either 'h' or 'c'");
+					}
+					break;
+				} else {
+					throw new IllegalArgumentException("Wrong config format - try again");
+				}
+			} catch(IllegalArgumentException wrongConfigFormat) {
+				System.out.println(wrongConfigFormat.getMessage());
+			}
 		}
-		if(blackConfig=="Human") {
-			blackPlayer = new Human(PieceColour.BLACK);
-		} else if(blackConfig=="RngCpu") {
-			blackPlayer = new RngCpu(PiceColour.BLACK);
-		}
-		
-		drawStartScreenCli();
-	 */
+		System.out.println("");
+	}
 	
 	public void drawStartScreenCli() {
 		System.out.println("DC-CHESS");
@@ -62,9 +99,22 @@ public class GameState {
 		System.out.println("");
 	}
 	
+	public void drawEndgameScreenCli() {
+		if(currentPlayer==PieceColour.WHITE && isCheckmate) {
+			System.out.println("White player wins after " + numPlies + " plies");
+		} else if(currentPlayer==PieceColour.BLACK && isCheckmate) {
+			System.out.println("Black player wins after " + numPlies + " plies");
+		} else if(isStalemate) {
+			System.out.println("Game ends in stalemate after " + numPlies + " plies");
+		} else {
+			throw new IllegalStateException("Game was found to be over, but neither 'isCheckmate' nor 'isStalemate' were set");
+		}
+	}
+	
 	public String createBoardString() {
 		String boardString = new String();
 		String[] boardLine = new String[8];
+		
 		//first, draw the board from the perspective of the white player, then draw depending on the current player
 		//board is initially in the correct left-to-right order with respect to white
 		for(int j=1;j<=8;j++) {
@@ -91,10 +141,28 @@ public class GameState {
 				boardLine[j-1] = new StringBuilder(boardLine[j-1]).reverse().toString();
 			}
 		}
-		//transform into a single multi-line string, so that this 
+		//add rank indicators
+		if(currentPlayer==PieceColour.BLACK) {
+			for(int j=1;j<=8;j++) {boardLine[j-1] = j + boardLine[j-1];}
+		} else if(currentPlayer==PieceColour.WHITE) {
+			for(int j=1;j<=8;j++) {boardLine[j-1] = 9-j + boardLine[j-1];}
+		}
+		//transform into a single multi-line string
 		for(int j=1;j<=8;j++) {
 			boardString = boardString + boardLine[j-1] + "\n";
 		}
+		
+		int ASCII_CODE_FOR_a = 97;
+		char fileChar;
+		String fileString = "";
+		for(int i=1;i<=8;i++) {
+			fileChar = (char)(i+ASCII_CODE_FOR_a-1);
+			fileString = fileString + fileChar;
+		}
+		if(currentPlayer==PieceColour.BLACK) {
+			fileString = new StringBuilder(fileString).reverse().toString();
+		}
+		boardString = boardString + " " + fileString + "\n";
 		
 		return boardString;
 	}
@@ -103,11 +171,11 @@ public class GameState {
 		System.out.println(createBoardString());
 	}
 	
-	public Set<Move> getAllLegalMoves() {
+	public Set<Move> getAllLegalMovesWithCheck() {
 		Set<Move> allLegalMoves = new HashSet<Move>();
 		
 		for(Piece piece : chessPieces) {
-			allLegalMoves.addAll(piece.getLegalMoves());
+			allLegalMoves.addAll(piece.getLegalMovesWithCheck());
 		}
 		
 		return allLegalMoves;
@@ -121,6 +189,34 @@ public class GameState {
 		}
 		
 		return allLegalMovesCheckless;
+	}
+	
+	public void updateGameState() {
+		if(!gameOver) {
+			if(getAllLegalMovesWithCheck().size()==0) {
+				gameOver = true;
+				if(currentIsInCheck()) {
+					isCheckmate = true;
+				} else {
+					isStalemate = true;
+				}
+			}
+		}
+		//update en passant state - don't bother doing this if the game is already over
+		if(!gameOver) {
+			for(Piece piece : chessPieces) {
+				if(piece instanceof Pawn) {
+					Pawn pawn = (Pawn)piece;
+					if(currentPlayer==pawn.pieceColour) {
+						pawn.lastMoveWasDouble = false;
+					}
+				}
+			}
+		}
+		//also increment the ply counter
+		if(!gameOver) {
+			numPlies++;
+		}
 	}
 	
 	public void removePieceAtLocation(Coord removeCoord) {
@@ -188,7 +284,7 @@ public class GameState {
 			return false;
 		}
 		
-		return false; //TODO: change to 'return true' once everything is ready
+		return true; //TODO: change to 'return true' once everything is ready
 	}
 	
 	public boolean isMoveToSquareLegalCheckless(Coord destCoord) {
@@ -232,25 +328,37 @@ public class GameState {
 		return pieceExistsAtCoord;
 	}
 	
-	/*TODO: implement this
 	public boolean rowRangeOccupied(int fileBoundA, int fileBoundB, int rank) {
-		
-		
-		return true;
+		Set<Coord> coordsBetweenFiles = Coord.allCoordsBetweenFiles(fileBoundA,fileBoundB,rank);
+		for(Coord coordBetweenFiles : coordsBetweenFiles) {
+			if(coordContainsPiece(coordBetweenFiles)) {
+				return true;
+			}
+		}
+		return false;
 	}
-	*/
-	/*TODO: implement this
-	//public boolean rowRangeUnderAttack(int fileBoundA, int fileBoundB, int rank) {
-		
-		
-		return true;
+
+	public boolean rowRangeUnderAttackByOpponent(int fileBoundA, int fileBoundB, int rank) {
+		Set<Coord> coordsBetweenFiles = Coord.allCoordsBetweenFiles(fileBoundA,fileBoundB,rank);
+		for(Coord coordBetweenFiles : coordsBetweenFiles) {
+			if(squareUnderAttackByOpponent(coordBetweenFiles)) {
+				return true;
+			}
+		}
+		return false;
 	}
-	*/
 	
-	//TODO: cut down on code duplication
-	//public boolean squareUnderAttackByOpponent() {
-		//the same as squareUnderAttackByCurrent(), but currentPlayer is manually switched in the new game
-	//}
+	public void switchPlayer() {currentPlayer = getOpponentColour();}
+	public boolean squareUnderAttackByOpponent(Coord evalCoord) {
+		//the same as squareUnderAttackByCurrent(), but currentPlayer is to the opposing player and back again
+		boolean squareIsUnderAttackByOpponent;
+		
+		switchPlayer();
+		squareIsUnderAttackByOpponent = squareUnderAttackByCurrent(evalCoord);
+		switchPlayer();
+		
+		return squareIsUnderAttackByOpponent;
+	}
 	public boolean squareUnderAttackByCurrent(Coord evalCoord) {
 		//check if there is an opponent piece already at that position
 		//if not, generate an opponent pawn there (remove once done)
@@ -281,9 +389,18 @@ public class GameState {
 			}
 		}
 		if(!kingFound) {
-			throw new IllegalStateException("No opposing king of colour " + getOpponentColour() + " found on the board");
+			throw new IllegalStateException("No king of colour " + getOpponentColour() + " found on the board");
 		}
 		return opponentInCheck;
+	}
+	public boolean currentIsInCheck() {
+		boolean currentInCheck;
+		
+		switchPlayer();
+		currentInCheck = opponentIsInCheck();
+		switchPlayer();
+		
+		return currentInCheck;
 	}
 	
 	public PieceColour getOpponentColour() {
@@ -305,32 +422,6 @@ public class GameState {
 	abstract public class Player implements playerSpecific {
 		PieceColour playerColour;
 		
-		//TODO: rewrite the try-catch clauses
-		public void getAndMakeNextMove() {
-			Move nextMove;
-			while(true) {
-				try {
-					nextMove = getNextMove();
-					break;
-				} catch(IllegalArgumentException wrongMoveFormat) {
-					System.out.println("Wrong move format - try again");
-				}
-			}
-			while(!isMoveLegalCheckless(nextMove)) {
-				System.out.println(nextMove.toString());
-				System.out.println("Illegal move - try again");
-				while(true) {
-					try {
-						nextMove = getNextMove();
-						break;
-					} catch(IllegalArgumentException wrongMoveFormat) {
-						System.out.println("Wrong move format - try again");
-					}
-				}
-			}
-			movePieceAtLocation(nextMove);
-		}
-		
 		Player(Player copyPlayer) {
 			this.playerColour = copyPlayer.playerColour;
 		}
@@ -339,7 +430,7 @@ public class GameState {
 		}
 	}
 	class Human extends Player {
-		String TMP_MOVE_PATTERN = "(?<initX>[0-9])(?<initY>[0-9])-(?<destX>[0-9])(?<destY>[0-9])";
+		String TMP_MOVE_PATTERN = "(?<initX>[a-g])(?<initY>[0-9])-(?<destX>[a-g])(?<destY>[0-9])";
 		
 		public Move getNextMove() {
 			BufferedReader cliInput = new BufferedReader(new InputStreamReader(System.in));
@@ -365,8 +456,13 @@ public class GameState {
 				System.exit(0);
 			}
 			if(tmpMoveMatch.find()) {
-				Coord init = new Coord(Integer.parseInt(tmpMoveMatch.group("initX")),Integer.parseInt(tmpMoveMatch.group("initY")));
-				Coord dest = new Coord(Integer.parseInt(tmpMoveMatch.group("destX")),Integer.parseInt(tmpMoveMatch.group("destY")));
+				//convert file characters into ints, use regex to build Move from input
+				int ASCII_CODE_FOR_a = 97;
+				int initX = (int)tmpMoveMatch.group("initX").charAt(0)-ASCII_CODE_FOR_a+1;
+				int destX = (int)tmpMoveMatch.group("destX").charAt(0)-ASCII_CODE_FOR_a+1;
+				
+				Coord init = new Coord(initX,Integer.parseInt(tmpMoveMatch.group("initY")));
+				Coord dest = new Coord(destX,Integer.parseInt(tmpMoveMatch.group("destY")));
 				
 				System.out.println("");
 				
@@ -375,6 +471,35 @@ public class GameState {
 				throw new IllegalArgumentException("Wrong move format");
 			}
 		}
+		//TODO: rewrite the try-catch clauses
+		public void getAndMakeNextMove() {
+			Move nextMove;
+			System.out.println("Ply " + numPlies + ":");
+			System.out.println("-------");
+			drawBoardCli();
+			
+			while(true) {
+				try {
+					nextMove = getNextMove();
+					break;
+				} catch(IllegalArgumentException wrongMoveFormat) {
+					System.out.println("Wrong move format - try again");
+				}
+			}
+			while(!isMoveLegalWithCheck(nextMove)) { //!!!!!!!!!!!!!!!!!!!!!!!!!! change to isMoveLegalCheckless() to get this working again
+				//System.out.println(nextMove.toString()); //TESTING
+				System.out.println("Illegal move - try again");
+				while(true) {
+					try {
+						nextMove = getNextMove();
+						break;
+					} catch(IllegalArgumentException wrongMoveFormat) {
+						System.out.println("Wrong move format - try again");
+					}
+				}
+			}
+			movePieceAtLocation(nextMove);
+		}
 		
 		Human(Human copyHuman) {super(copyHuman);}
 		Human(PieceColour playerColour) {
@@ -382,14 +507,24 @@ public class GameState {
 		}
 	}
 	//TODO: implement an AI which simply plays random legal moves from the legal move list
-	//abstract class Ai extends Player {
-	//	public Move getNextMove() {
-	//		
-	//	}
-	//}
-	//class rngAi extends Ai {
-	//}
-	//class oneFoldAi extends Ai {
+	//TODO: consider having a main AI abstract class to subclass specific AIs from
+	class RngAi extends Player {
+		public Move getNextMove() {
+			Set<Move> moveSet = getAllLegalMovesWithCheck();
+			Move[] moveArray = (Move[])getAllLegalMovesWithCheck().toArray(new Move[moveSet.size()]);
+			int randomIndex = new Random().nextInt(moveArray.length);
+			return moveArray[randomIndex];
+		}
+		public void getAndMakeNextMove() {
+			movePieceAtLocation(getNextMove());
+		}
+		
+		RngAi(RngAi copyRngAi) {super(copyRngAi);}
+		RngAi(PieceColour playerColour) {
+			super(playerColour);
+		}
+	}
+	//class OneFoldAi extends Player {
 	//}
 	
 	class ArbiterLogger {
@@ -421,7 +556,7 @@ public class GameState {
 		public Coord getPieceCoord() {return this.pieceCoord;}
 		public char getRepChar() {return this.REP_CHAR;}
 		
-		public Set<Move> getLegalMoves() {
+		public Set<Move> getLegalMovesWithCheck() {
 			Set<Move> initialMoves = formMovesFromRelativeCoordSet();
 			Set<Move> finalMoves = new HashSet<>();
 			
@@ -462,11 +597,10 @@ public class GameState {
 		//TODO: this should probably call pieceSpecificArbiter, not the other way around
 		//TODO: rename "moveLegal" to "arbiter"
 		public boolean isMoveLegalCommon(Move moveAttempt) {
-			@SuppressWarnings("unused") Piece currentPiece = getPieceAtLocation(moveAttempt.getInit());
-			boolean checkVertical = false, checkHorizontal = false;
-			int incHorizontal=0, incVertical=0;
-			int horizontalShift=0, verticalShift=0;
-			int xToCheck, yToCheck;
+			boolean checkHorizontal = false, checkVertical = false;
+			int incHorizontal=0,             incVertical=0;
+			int horizontalShift=0,           verticalShift=0;
+			int xToCheck,                    yToCheck;
 			
 			//check if the initial coords match the piece's
 			if(!moveAttempt.getInit().equals(this.pieceCoord)) {
@@ -478,9 +612,9 @@ public class GameState {
 			}
 			//check if the move is in the potential move list
 			if(!formMovesFromRelativeCoordSet().contains(moveAttempt)) {
-				for(Move tmpMove : formMovesFromRelativeCoordSet()) {
-					System.out.println(tmpMove.hashCode() + " " + tmpMove.equals(moveAttempt));
-				}
+				//for(Move tmpMove : formMovesFromRelativeCoordSet()) {
+				//	System.out.println(tmpMove.hashCode() + " " + tmpMove.equals(moveAttempt)); //TESTING
+				//}
 				return false;
 			}
 			//cannot capture own piece!
@@ -497,21 +631,20 @@ public class GameState {
 				if(moveAttempt.getInit().getY()!=moveAttempt.getDest().getY()) {
 					checkVertical = true;
 				}
-				
 				if(checkHorizontal&&checkVertical) {
 					if(Move.absCoordDeltaFromMove(moveAttempt).getX()==Move.absCoordDeltaFromMove(moveAttempt).getY()) {
 						//diagonal move
-						if(moveAttempt.getDest().getX()-moveAttempt.getInit().getX()>0) {
+						if(moveAttempt.getDest().getX()>moveAttempt.getInit().getX()) {
 							incHorizontal=1;
 						} else {
 							incHorizontal=-1;
 						}
-						if(moveAttempt.getDest().getY()-moveAttempt.getInit().getY()>0) {
+						if(moveAttempt.getDest().getY()>moveAttempt.getInit().getY()) {
 							incVertical=1;
 						} else {
 							incVertical=-1;
 						}
-						for(int i=moveAttempt.getInit().getX()+1;i<moveAttempt.getDest().getX();i++) {
+						for(int i=1;i<Move.absCoordDeltaFromMove(moveAttempt).getX();i++) {
 							horizontalShift+=incHorizontal;
 							verticalShift+=incVertical;
 							
@@ -526,7 +659,7 @@ public class GameState {
 					}
 				} else if(checkHorizontal&&!checkVertical) {
 					//horizontal move
-					if(moveAttempt.getDest().getX()-moveAttempt.getInit().getX()>0) {
+					if(moveAttempt.getDest().getX()>moveAttempt.getInit().getX()) {
 						for(int i=moveAttempt.getInit().getX()+1;i<moveAttempt.getDest().getX();i++) {
 							if(coordContainsPiece(new Coord(i,moveAttempt.getInit().getY()))) {
 								return false;
@@ -541,7 +674,8 @@ public class GameState {
 					}
 				} else if(!checkHorizontal&&checkVertical) {
 					//vertical move
-					if(moveAttempt.getDest().getY()-moveAttempt.getInit().getY()>0) {
+					//moveAttempt.getDest().getY()-moveAttempt.getInit().getY()>0 //TESTING
+					if(moveAttempt.getDest().getY()>moveAttempt.getInit().getY()) {
 						for(int j=moveAttempt.getInit().getY()+1;j<moveAttempt.getDest().getY();j++) {
 							if(coordContainsPiece(new Coord(moveAttempt.getInit().getX(),j))) {
 								return false;
@@ -581,17 +715,21 @@ public class GameState {
 			this.pieceColour = copyPiece.pieceColour;
 			this.collisionChecking = copyPiece.collisionChecking;
 			this.pieceCoord = new Coord(copyPiece.pieceCoord);
+			this.relativeCoordSet = new HashSet<Coord>();
+			for(Coord relativeCoord : copyPiece.relativeCoordSet) {
+				this.relativeCoordSet.add(new Coord(relativeCoord));
+			}
 		}
 		Piece(PieceColour pieceColour, Coord pieceCoord) {
 			this.pieceColour = pieceColour;
-			this.collisionChecking = false;
+			this.collisionChecking = true;
 			this.pieceCoord = new Coord(pieceCoord);
+			this.relativeCoordSet = testableRelativeCoord(); //TESTING
 		}
 	}
 	
 	private interface PieceSpecific {
 		//public attemptMovePieceSpecific(Move attemptMove);
-		//TODO: implement move legality checking in a meaningful way for each piece type
 		public void makeMovePieceSpecific(Move move);
 		//TODO: rename instances of moveAttempt to attemptMove
 		public boolean isMoveLegalPieceSpecific(Move moveAttempt);
@@ -783,7 +921,7 @@ public class GameState {
 				super.REP_CHAR = '♜';
 			}
 			this.hasMoved = false;
-			this.relativeCoordSet = testableRelativeCoord();
+			//this.relativeCoordSet = testableRelativeCoord(); //TESTING
 		}
 	}
 	public class Bishop extends Piece {
@@ -832,7 +970,7 @@ public class GameState {
 			} else if(pieceColour==PieceColour.BLACK) {
 				super.REP_CHAR = '♝';
 			}
-			this.relativeCoordSet = testableRelativeCoord();
+			//this.relativeCoordSet = testableRelativeCoord(); //TESTING
 		}
 	}
 	public class Knight extends Piece {
@@ -885,7 +1023,7 @@ public class GameState {
 			} else if(pieceColour==PieceColour.BLACK) {
 				super.REP_CHAR = '♞';
 			}
-			this.relativeCoordSet = testableRelativeCoord();
+			//this.relativeCoordSet = testableRelativeCoord(); //TESTING
 			this.collisionChecking = false;
 		}
 	}
@@ -924,7 +1062,7 @@ public class GameState {
 		public int hashCode() {return super.hashCode();}
 		public boolean equals(Object o) {
 			if(this == o) {return true;}
-			else if(o instanceof Knight) {
+			else if(o instanceof Queen) {
 				Queen testQueen = (Queen)o;
 				if(super.equals(testQueen)) {return true;} else {return false;}
 			} else {
@@ -942,7 +1080,7 @@ public class GameState {
 			} else if(pieceColour==PieceColour.BLACK) {
 				super.REP_CHAR = '♛';
 			}
-			this.relativeCoordSet = testableRelativeCoord();
+			//this.relativeCoordSet = testableRelativeCoord(); //TESTING
 		}
 	}
 	public class King extends Piece {
@@ -1017,15 +1155,15 @@ public class GameState {
 				if(hasMoved) {
 					return false;
 				}
-				//TODO: get castling working
-				//TODO: if any of the squares between the two are occupied
-				//if(rowRangeOccupied(moveAttempt.getInit().getX(),moveAttempt.getDest().getX())) {
-				//	return false;
-				//}
-				//TODO: if any of the squares between the two (and including those two) are under attack
-				//if(rowRangeUnderAttack(moveAttempt.getInit().getX(),moveAttempt.getDest().getX())) {
-				//	return false;
-				//}
+				//TODO: get castling working: this code could cause trouble
+				//if any of the squares between the two are occupied
+				if(rowRangeOccupied(moveAttempt.getInit().getX(),moveAttempt.getDest().getX(),moveAttempt.getInit().getY())) {
+					return false;
+				}
+				//if any of the squares between the two (and including those two) are under attack
+				if(rowRangeUnderAttackByOpponent(moveAttempt.getInit().getX(),moveAttempt.getDest().getX(),moveAttempt.getInit().getY())) {
+					return false;
+				}
 			}
 			return true;
 		}
@@ -1068,14 +1206,15 @@ public class GameState {
 				super.REP_CHAR = '♚';
 			}
 			this.hasMoved = false;
-			this.relativeCoordSet = testableRelativeCoord();
+			//this.relativeCoordSet = testableRelativeCoord(); //TESTING
 		}
 	}
 	
 	GameState(GameState gameCopy) {
 		this.currentPlayer = gameCopy.currentPlayer;
+		this.gameOver      = gameCopy.gameOver;
 		
-		//deep copy of pieces
+		//TODO: IMPORTANT - deep copy of pieces
 		this.chessPieces = new HashSet<Piece>();
 		this.graveyard = new ArrayList<Piece>();
 		//TODO: EXTREMELY inelegant, can we work around inability to instantiate abstract class?
@@ -1097,14 +1236,17 @@ public class GameState {
 		}
 		
 		//TODO: fix instantiation here before computer players become an option
-		this.whitePlayer = new Human((Human)gameCopy.whitePlayer);
-		this.blackPlayer = new Human((Human)gameCopy.blackPlayer);
+		if(gameCopy.whitePlayer instanceof Human) {this.whitePlayer = new Human((Human)gameCopy.whitePlayer);
+		} else if(gameCopy.whitePlayer instanceof RngAi) {this.whitePlayer = new RngAi((RngAi)gameCopy.whitePlayer);}
+		if(gameCopy.blackPlayer instanceof Human) {this.whitePlayer = new Human((Human)gameCopy.blackPlayer);
+		} else if(gameCopy.blackPlayer instanceof RngAi) {this.whitePlayer = new RngAi((RngAi)gameCopy.blackPlayer);}
 		
 		this.logger = new ArbiterLogger(gameCopy.logger);
 	}
 	
 	GameState() {
 		this.currentPlayer = PieceColour.WHITE;
+		this.gameOver = false;
 		
 		this.chessPieces = new HashSet<Piece>();
 		this.graveyard = new ArrayList<Piece>();
