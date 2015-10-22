@@ -15,7 +15,7 @@ import java.io.*;
 //TODO: run game verifier against every game in a massive database
 //TODO: fix calls to Coord and Move methods which "fake" static modifier
 public class GameState {
-	Set<Piece> chessPieces;
+	List<Piece> chessPieces;
 	//this is a list because pieces that have been captured may have identical state at the point of capture to pieces that were captured earlier
 	List<Piece> graveyard;
 	
@@ -73,14 +73,14 @@ public class GameState {
 					} else if(tmpConfigMatch.group("whitePlayer").equals("c")) {
 						whitePlayer = new RngAi(PieceColour.WHITE);
 					} else {
-						throw new IllegalArgumentException("White player type declaration must be either 'h' or 'c'");
+						throw new IllegalArgumentException("Black player type declaration must be either 'h' or 'c'");
 					}
 					if(tmpConfigMatch.group("blackPlayer").equals("h")) {
 						blackPlayer = new Human(PieceColour.BLACK);
 					} else if(tmpConfigMatch.group("blackPlayer").equals("c")) {
 						blackPlayer = new RngAi(PieceColour.BLACK);
 					} else {
-						throw new IllegalArgumentException("Black player type declaration must be either 'h' or 'c'");
+						throw new IllegalArgumentException("White player type declaration must be either 'h' or 'c'");
 					}
 					break;
 				} else {
@@ -101,9 +101,9 @@ public class GameState {
 	
 	public void drawEndgameScreenCli() {
 		if(currentPlayer==PieceColour.WHITE && isCheckmate) {
-			System.out.println("White player wins after " + numPlies + " plies");
-		} else if(currentPlayer==PieceColour.BLACK && isCheckmate) {
 			System.out.println("Black player wins after " + numPlies + " plies");
+		} else if(currentPlayer==PieceColour.BLACK && isCheckmate) {
+			System.out.println("White player wins after " + numPlies + " plies");
 		} else if(isStalemate) {
 			System.out.println("Game ends in stalemate after " + numPlies + " plies");
 		} else {
@@ -511,7 +511,7 @@ public class GameState {
 	class RngAi extends Player {
 		public Move getNextMove() {
 			Set<Move> moveSet = getAllLegalMovesWithCheck();
-			Move[] moveArray = (Move[])getAllLegalMovesWithCheck().toArray(new Move[moveSet.size()]);
+			Move[] moveArray = (Move[])moveSet.toArray(new Move[moveSet.size()]);
 			int randomIndex = new Random().nextInt(moveArray.length);
 			return moveArray[randomIndex];
 		}
@@ -1215,7 +1215,7 @@ public class GameState {
 		this.gameOver      = gameCopy.gameOver;
 		
 		//TODO: IMPORTANT - deep copy of pieces
-		this.chessPieces = new HashSet<Piece>();
+		this.chessPieces = new ArrayList<Piece>();
 		this.graveyard = new ArrayList<Piece>();
 		//TODO: EXTREMELY inelegant, can we work around inability to instantiate abstract class?
 		for(Piece chessPiece : gameCopy.chessPieces) {
@@ -1248,7 +1248,7 @@ public class GameState {
 		this.currentPlayer = PieceColour.WHITE;
 		this.gameOver = false;
 		
-		this.chessPieces = new HashSet<Piece>();
+		this.chessPieces = new ArrayList<Piece>();
 		this.graveyard = new ArrayList<Piece>();
 		
 		//add pawns for both sides
