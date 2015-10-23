@@ -65,7 +65,7 @@ public class GameState {
 					e.printStackTrace();
 				}
 				
-				Pattern tmpConfigRegex = Pattern.compile("(?<whitePlayer>[hro])-(?<blackPlayer>[hro])");
+				Pattern tmpConfigRegex = Pattern.compile("(?<whitePlayer>[hrot])-(?<blackPlayer>[hrot])");
 				Matcher tmpConfigMatch = tmpConfigRegex.matcher(inputLine);
 				
 				if(inputLine.equals("q")) {
@@ -77,18 +77,22 @@ public class GameState {
 					} else if(tmpConfigMatch.group("whitePlayer").equals("r")) {
 						whitePlayer = new RngAi(PieceColour.WHITE);
 					} else if(tmpConfigMatch.group("whitePlayer").equals("o")) {
-						whitePlayer = new OneFoldAi(PieceColour.WHITE);
+						whitePlayer = new OnePlyAi(PieceColour.WHITE);
+					} else if(tmpConfigMatch.group("whitePlayer").equals("t")) {
+						whitePlayer = new TwoPlyAi(PieceColour.WHITE);
 					} else {
-						throw new IllegalArgumentException("Black player type declaration must be either 'h', 'r' or 'o'");
+						throw new IllegalArgumentException("Black player type declaration must be either 'h', 'r', 'o' or 't'");
 					}
 					if(tmpConfigMatch.group("blackPlayer").equals("h")) {
 						blackPlayer = new Human(PieceColour.BLACK);
 					} else if(tmpConfigMatch.group("blackPlayer").equals("r")) {
 						blackPlayer = new RngAi(PieceColour.BLACK);
 					} else if(tmpConfigMatch.group("blackPlayer").equals("o")) {
-						blackPlayer = new OneFoldAi(PieceColour.BLACK);
+						blackPlayer = new OnePlyAi(PieceColour.BLACK);
+					} else if(tmpConfigMatch.group("blackPlayer").equals("t")) {
+						blackPlayer = new TwoPlyAi(PieceColour.BLACK);
 					} else {
-						throw new IllegalArgumentException("White player type declaration must be either 'h', 'r' or 'o'");
+						throw new IllegalArgumentException("White player type declaration must be either 'h', 'r', 'o' or 't'");
 					}
 					break;
 				} else {
@@ -535,12 +539,10 @@ public class GameState {
 			super(playerColour);
 		}
 	}
-	class OneFoldAi extends Player {
+	class OnePlyAi extends Player {
 		public Move getNextMove() {
-			int boardScore;
+			int boardScore, bestScore;
 			Move bestMove;
-			int bestScore = -1000000; //arbitrary, just has to be really low for now
-			//boolean betterMoveFound = false;
 			
 			//acts exactly the same way as rngAi if it doesn't find any better move (personal preference)
 			Set<Move> allLegalMoves = getAllLegalMovesWithCheck();
@@ -550,7 +552,7 @@ public class GameState {
 			//evaluate the randomly-selected move
 			GameState simGame = new GameState(GameState.this);
 			simGame.movePieceAtLocation(bestMove);
-			boardScore = simGame.evalBoard(currentPlayer);
+			bestScore = simGame.evalBoard(currentPlayer);
 			
 			//scans the board for a move which is better than the randomly-selected one
 			for(Move simMove : allLegalMoves) {
@@ -569,8 +571,57 @@ public class GameState {
 			movePieceAtLocation(getNextMove());
 		}
 		
-		OneFoldAi(OneFoldAi copyOneFoldAi) {super(copyOneFoldAi);}
-		OneFoldAi(PieceColour playerColour) {
+		OnePlyAi(OnePlyAi copyOneFoldAi) {super(copyOneFoldAi);}
+		OnePlyAi(PieceColour playerColour) {
+			super(playerColour);
+		}
+	}
+	
+	class TwoPlyAi extends Player {
+		public Move getNextMove() {
+			Move bestOfWorstMove;
+			int worstScore = 1000000;
+			int bestOfWorstScore = -1000000; //arbitrary, just has to be really low for now
+			boolean secondPlyExists = false;
+			
+			Set<Move> allLegalFirstMoves = getAllLegalMovesWithCheck();
+			Move[] moveArray = (Move[])allLegalFirstMoves.toArray(new Move[allLegalFirstMoves.size()]);
+			int randomIndex = new Random().nextInt(moveArray.length);
+			bestOfWorstMove = moveArray[randomIndex]; //start with random move just to keep eclipse happy
+			
+			//scans the board for a move which is better than the randomly-selected one
+			for(Move firstMove : allLegalFirstMoves) {
+				GameState simGame1 = new GameState(GameState.this);
+				simGame1.movePieceAtLocation(firstMove);
+				
+				worstScore = 1000000;
+				for(Move secondMove : simGame1.getAllLegalMovesWithCheck()) {
+					int boardScore;
+					
+					GameState simGame2 = new GameState(simGame1);
+					simGame2.movePieceAtLocation(secondMove);
+					boardScore = simGame2.evalBoard(currentPlayer); //evaluate the board from the perspective of the current player in the calling game instance
+					secondPlyExists = true; //check if the boardScore has been updated by the second ply
+					
+					if(boardScore<worstScore) {
+						worstScore = boardScore;
+					}
+				}
+				//we assume that the opponent will pick the move that is worst for us on his turn,
+				//and, knowing this, choose the initial move with the best worst case
+				if(secondPlyExists && worstScore>bestOfWorstScore) {
+					bestOfWorstScore = worstScore;
+					bestOfWorstMove = firstMove;
+				}
+			}
+			return bestOfWorstMove;
+		}
+		public void getAndMakeNextMove() {
+			movePieceAtLocation(getNextMove());
+		}
+		
+		TwoPlyAi(TwoPlyAi copyTwoPlyAi) {super(copyTwoPlyAi);}
+		TwoPlyAi(PieceColour playerColour) {
 			super(playerColour);
 		}
 	}

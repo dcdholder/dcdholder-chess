@@ -1,7 +1,7 @@
 For now, use the following format for initial game config:
 ${whitePlayerType}-${blackPlayerType}
 ex. h-r to play in (h)uman vs. (r)ngAi mode
-The possible options for player type at the moment are (h)uman, (r)ngAi (selects a random legal move), (o)nePlyAi (basic greedy AI which takes pieces when it can, plays random moves otherwise)
+The possible options for player type at the moment are (h)uman, (r)ngAi (selects a random legal move), (o)nePlyAi (basic greedy AI which takes pieces when it can, plays random moves otherwise, cannot analyze endgame states), (t)woPlyAi (takes a best-of-worst-case approach to play, cannot analyze endgame states)
 Until I get the PGN parser working, use the following move format for CLI play:
 ${initialFileChar}${initialRankNum}-${destFileChar}${destRankNum}
 ex. a2-a3 to move the leftmost white pawn one square from starting position
