@@ -13,11 +13,11 @@ DC-CHESS GAME PLAN
 - Write tests to make sure that the parser only accepts valid input (purposely introduce bugs into the file) //make sure that it properly handles comments and other nonmove text
 - Write tests and add .pgn files to check normal and special piece moves, checks, checkmates and stalemates
 - Write a method to "screenshot" games and write them to a log file (important for visually inspecting test results)
-- Implement all arbiter methods (stalemates, checkmates included)
-- Write a command-line interface for human play
+- Implement all arbiter methods (stalemates, checkmates included) DONE
+- Write a command-line interface for human play DONE
 - Make sure that all tests run, games can be played from start to finish against oneself
 - Check into prod/master
-- Add a random move AI, write a test which has two of them fight each other (print the results)
+- Add a random move AI, write a test which has two of them fight each other (print the results) DONE
 - Check into prod/master
 - Write a method to evaluate the value of a board for a given player
 - Add an arbitrary-number-of-folds AI
@@ -35,17 +35,32 @@ DC-CHESS GAME PLAN
 - Check into prod/master
 - Networked play? Client-to-AI-server play? GUI version (who cares)?
 
-FIRST "SUCCESSFUL" AI vs. AI MATCH
-----------------------------------
-<game>
+VALID CHECKMATE
+---------------
+
+1□■□■□■□■
+2■□■□■□♙□
+3□■□■□■♟■
+4■□♔□♙□■□
+5□■□■□♗□■
+6♞♖■□■□■□
+7♖■□■♙■□■
+8■□♚□■□■□
+ hgfedcba
+
+White player wins after 201 plies
+
+VALID STALEMATE (50-MOVE RULE)
+------------------------------
+
+8□■□■□■□♚
 7■□■□■□■□
-6□■□■♟■□■
-5♟♟♙♗■♕■□
-4♙■□■□■♟♟
-3■□♙♖♙♙■♙
-2□■♞♘□♙□■
-1■♘■□♔□♖□
+6□■□■□■□■
+5■□■□♔□■□
+4□■□■□■□■
+3■□■□■□■□
+2□■□■□■□■
+1■□■□■□■□
  abcdefgh
 
-White player wins after 110 plies
-</game>
+Game ends in stalemate after 554 plies (277 ply/s!)

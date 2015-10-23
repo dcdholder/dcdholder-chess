@@ -22,6 +22,7 @@ public class GameState {
 	PieceColour currentPlayer;
 	boolean gameOver,isCheckmate,isStalemate;
 	int numPlies = 0;
+	int fiftyMoveRuleCounter = 0;
 	
 	Player whitePlayer = new Human(PieceColour.WHITE);
 	Player blackPlayer = new Human(PieceColour.BLACK);
@@ -32,6 +33,8 @@ public class GameState {
 		GameState currentGame = new GameState();
 		currentGame.drawStartScreenCli();
 		currentGame.drawConfigScreenCli();
+		//Comment in for benchmarking
+		//System.out.println(System.currentTimeMillis());
 		while(true) {
 			currentGame.updateGameState();
 			//currentGame.drawBoardCli();
@@ -41,6 +44,7 @@ public class GameState {
 				break;
 			}
 		}
+		//System.out.println(System.currentTimeMillis());
 		currentGame.drawBoardCli();
 		currentGame.drawEndgameScreenCli();
 	}
@@ -193,7 +197,10 @@ public class GameState {
 	
 	public void updateGameState() {
 		if(!gameOver) {
-			if(getAllLegalMovesWithCheck().size()==0) {
+			if(fiftyMoveRuleCounter==100) { //"fifty moves" corresponds to 100 plies, which are easier to keep track of
+				gameOver = true;
+				isStalemate = true;
+			} else if(getAllLegalMovesWithCheck().size()==0) {
 				gameOver = true;
 				if(currentIsInCheck()) {
 					isCheckmate = true;
@@ -545,19 +552,105 @@ public class GameState {
 		}
 	}
 	
+	//TODO: format/locate this better
+	//static Piece Coord list generation reduce should help reduce performance penalty of board construction
+	static ArrayList<Coord> whitePawnRelativeCoords = new ArrayList<Coord>();
+	static ArrayList<Coord> blackPawnRelativeCoords = new ArrayList<Coord>();
+	static ArrayList<Coord> kingRelativeCoords = new ArrayList<Coord>();
+	static ArrayList<Coord> queenRelativeCoords = new ArrayList<Coord>();
+	static ArrayList<Coord> knightRelativeCoords = new ArrayList<Coord>();
+	static ArrayList<Coord> bishopRelativeCoords = new ArrayList<Coord>();
+	static ArrayList<Coord> rookRelativeCoords = new ArrayList<Coord>();
+	static {
+		//WHITE PAWN MOVES
+		//forward moves
+		whitePawnRelativeCoords.add(new Coord(0,1));
+		whitePawnRelativeCoords.add(new Coord(0,2));
+		//capture moves
+		whitePawnRelativeCoords.add(new Coord(1,1));
+		whitePawnRelativeCoords.add(new Coord(-1,1));
+
+		//BLACK PAWN MOVES
+		//forward moves
+		blackPawnRelativeCoords.add(new Coord(0,-1));
+		blackPawnRelativeCoords.add(new Coord(0,-2));
+		//capture moves
+		blackPawnRelativeCoords.add(new Coord(1,-1));
+		blackPawnRelativeCoords.add(new Coord(-1,-1));
+
+		//KNIGHT MOVES
+		//"vertical" knight moves
+		knightRelativeCoords.add(new Coord(1,2));
+		knightRelativeCoords.add(new Coord(1,-2));
+		knightRelativeCoords.add(new Coord(-1,2));
+		knightRelativeCoords.add(new Coord(-1,-2));
+		//"horizontal" knight moves
+		knightRelativeCoords.add(new Coord(2,1));
+		knightRelativeCoords.add(new Coord(2,-1));
+		knightRelativeCoords.add(new Coord(-2,1));
+		knightRelativeCoords.add(new Coord(-2,-1));
+
+		//BISHOP MOVES
+		for(int horVert=1;horVert<=7;horVert++) {
+			bishopRelativeCoords.add(new Coord(horVert,horVert));
+			bishopRelativeCoords.add(new Coord(-horVert,horVert));
+			bishopRelativeCoords.add(new Coord(horVert,-horVert));
+			bishopRelativeCoords.add(new Coord(-horVert,-horVert));
+		}
+
+		//ROOK MOVES
+		for(int horVert=-7;horVert<=7;horVert++) {
+			if(horVert!=0) {
+				rookRelativeCoords.add(new Coord(horVert,0));
+				rookRelativeCoords.add(new Coord(0,horVert));
+			}
+		}
+
+		//QUEEN MOVES
+		//vertical and horizontal moves
+		for(int horVert=-7;horVert<=7;horVert++) {
+			if(horVert!=0) {
+				queenRelativeCoords.add(new Coord(horVert,0));
+				queenRelativeCoords.add(new Coord(0,horVert));
+			}
+		}
+		//diagonal moves
+		for(int horVert=1;horVert<=7;horVert++) {
+			queenRelativeCoords.add(new Coord(horVert,horVert));
+			queenRelativeCoords.add(new Coord(-horVert,horVert));
+			queenRelativeCoords.add(new Coord(horVert,-horVert));
+			queenRelativeCoords.add(new Coord(-horVert,-horVert));
+		}
+		
+		//KING MOVES
+		//diagonal moves
+		kingRelativeCoords.add(new Coord(1,1));
+		kingRelativeCoords.add(new Coord(1,-1));
+		kingRelativeCoords.add(new Coord(-1,1));
+		kingRelativeCoords.add(new Coord(-1,-1));
+		//horizontal and vertical moves
+		kingRelativeCoords.add(new Coord(0,1));
+		kingRelativeCoords.add(new Coord(0,-1));
+		kingRelativeCoords.add(new Coord(1,0));
+		kingRelativeCoords.add(new Coord(-1,0));
+		//castling
+		kingRelativeCoords.add(new Coord(2,0));
+		kingRelativeCoords.add(new Coord(-2,0));
+	}
+	
 	abstract public class Piece implements PieceSpecific {
 		//REP_CHAR is set by pieces individually according to type and colour
 		char REP_CHAR = 'X';
 		Coord pieceCoord;
 		PieceColour pieceColour;
 		boolean collisionChecking;
-		Set<Coord> relativeCoordSet;
+		List<Coord> relativeCoords;
 		
 		public Coord getPieceCoord() {return this.pieceCoord;}
 		public char getRepChar() {return this.REP_CHAR;}
 		
 		public Set<Move> getLegalMovesWithCheck() {
-			Set<Move> initialMoves = formMovesFromRelativeCoordSet();
+			Set<Move> initialMoves = formMovesFromRelativeCoordList();
 			Set<Move> finalMoves = new HashSet<>();
 			
 			for(Move move : initialMoves) {
@@ -568,7 +661,7 @@ public class GameState {
 			return finalMoves;
 		}
 		public Set<Move> getLegalMovesCheckless() {
-			Set<Move> initialMoves = formMovesFromRelativeCoordSet();
+			Set<Move> initialMoves = formMovesFromRelativeCoordList();
 			Set<Move> finalMoves = new HashSet<>();
 			
 			for(Move move : initialMoves) {
@@ -578,12 +671,19 @@ public class GameState {
 			}
 			return finalMoves;
 		}
-		public Set<Move> formMovesFromRelativeCoordSet() {
+		public Set<Move> formMovesFromRelativeCoordList() {
 			Set<Move> testableMoveSet = new HashSet<Move>();
 			
-			for(Coord relativeCoord : relativeCoordSet) {
-				if(Move.wouldBeLegalMoveObjectFromRelative(this.pieceCoord,relativeCoord)) {
-					testableMoveSet.add(new Move(new Coord(this.pieceCoord),Coord.addCoords(this.pieceCoord,relativeCoord)));
+			if(pieceColour==currentPlayer) {
+				try {
+					for(Coord relativeCoord : relativeCoords) {
+						if(Move.wouldBeLegalMoveObjectFromRelative(this.pieceCoord,relativeCoord)) {
+							testableMoveSet.add(new Move(new Coord(this.pieceCoord),Coord.addCoords(this.pieceCoord,relativeCoord)));
+						}
+					}
+				} catch(NullPointerException e) {
+					System.out.println(relativeCoords.toString());
+					throw new NullPointerException();
 				}
 			}
 			
@@ -591,7 +691,12 @@ public class GameState {
 		}
 		
 		public void makeMovePieceCommon(Move move) {
-			removePieceAtLocation(move.getDest());
+			if(coordContainsPiece(move.getDest())) {
+				removePieceAtLocation(move.getDest());
+				fiftyMoveRuleCounter = 0;
+			} else {
+				fiftyMoveRuleCounter++;
+			}
 			pieceCoord = new Coord(move.getDest());
 		}
 		//TODO: this should probably call pieceSpecificArbiter, not the other way around
@@ -611,7 +716,7 @@ public class GameState {
 				return false;
 			}
 			//check if the move is in the potential move list
-			if(!formMovesFromRelativeCoordSet().contains(moveAttempt)) {
+			if(!formMovesFromRelativeCoordList().contains(moveAttempt)) {
 				//for(Move tmpMove : formMovesFromRelativeCoordSet()) {
 				//	System.out.println(tmpMove.hashCode() + " " + tmpMove.equals(moveAttempt)); //TESTING
 				//}
@@ -715,16 +820,12 @@ public class GameState {
 			this.pieceColour = copyPiece.pieceColour;
 			this.collisionChecking = copyPiece.collisionChecking;
 			this.pieceCoord = new Coord(copyPiece.pieceCoord);
-			this.relativeCoordSet = new HashSet<Coord>();
-			for(Coord relativeCoord : copyPiece.relativeCoordSet) {
-				this.relativeCoordSet.add(new Coord(relativeCoord));
-			}
+			this.relativeCoords = copyPiece.relativeCoords;
 		}
 		Piece(PieceColour pieceColour, Coord pieceCoord) {
 			this.pieceColour = pieceColour;
 			this.collisionChecking = true;
 			this.pieceCoord = new Coord(pieceCoord);
-			this.relativeCoordSet = testableRelativeCoord(); //TESTING
 		}
 	}
 	
@@ -733,7 +834,6 @@ public class GameState {
 		public void makeMovePieceSpecific(Move move);
 		//TODO: rename instances of moveAttempt to attemptMove
 		public boolean isMoveLegalPieceSpecific(Move moveAttempt);
-		public Set<Coord> testableRelativeCoord();
 	}
 	
 	public class Pawn extends Piece {
@@ -799,31 +899,13 @@ public class GameState {
 			makeMovePieceCommon(move);
 			//check if the last move was a double move
 			if(Move.absCoordDeltaFromMove(move).equals(new Coord(0,2))) {this.lastMoveWasDouble=true;}
-			//take double moves off the table if the piece has already been moved
-			relativeCoordSet.remove(new Coord(0,2));
 			//check if the move results in pawn promotion... if so, create new piece and remove self
 			if((pieceColour==PieceColour.WHITE && move.getDest().getY()==8) || (pieceColour==PieceColour.BLACK && move.getDest().getY()==1)) {
 				//produce a new queen at current location and delete self
 				chessPieces.add(new Queen(pieceColour,move.getDest()));
 				chessPieces.remove(this);
 			}
-		}
-		public Set<Coord> testableRelativeCoord() {
-			Set<Coord> testableRelativeCoord = new HashSet<Coord>();
-			
-			//forward moves
-			if(pieceColour==PieceColour.WHITE) {
-				testableRelativeCoord.add(new Coord(0,1));
-				testableRelativeCoord.add(new Coord(0,2));
-			} else if(pieceColour==PieceColour.BLACK) {
-				testableRelativeCoord.add(new Coord(0,-1));
-				testableRelativeCoord.add(new Coord(0,-2));
-			}
-			//capture moves
-			testableRelativeCoord.add(new Coord(1,1));
-			testableRelativeCoord.add(new Coord(-1,1));
-			
-			return testableRelativeCoord;
+			fiftyMoveRuleCounter = 0;
 		}
 		
 		public int hashCode() {
@@ -849,18 +931,19 @@ public class GameState {
 			super(PieceColour.WHITE,new Coord(1,1));
 			this.lastMoveWasDouble = false;
 			//potential for performance penalty
-			this.relativeCoordSet = testableRelativeCoord();
+			super.relativeCoords = whitePawnRelativeCoords;
 		}
 		
 		Pawn(PieceColour pieceColour,Coord pieceCoord) {
 			super(pieceColour,pieceCoord);
 			if(pieceColour==PieceColour.WHITE) {
 				super.REP_CHAR = '♙';
+				super.relativeCoords = whitePawnRelativeCoords;
 			} else if(pieceColour==PieceColour.BLACK) {
 				super.REP_CHAR = '♟';
+				super.relativeCoords = blackPawnRelativeCoords;
 			}
 			this.lastMoveWasDouble = false;
-			this.relativeCoordSet = testableRelativeCoord();
 		}
 	}
 	public class Rook extends Piece {
@@ -921,7 +1004,7 @@ public class GameState {
 				super.REP_CHAR = '♜';
 			}
 			this.hasMoved = false;
-			//this.relativeCoordSet = testableRelativeCoord(); //TESTING
+			super.relativeCoords = rookRelativeCoords;
 		}
 	}
 	public class Bishop extends Piece {
@@ -935,18 +1018,6 @@ public class GameState {
 			} else {
 				return true;
 			}
-		}
-		public Set<Coord> testableRelativeCoord() {
-			Set<Coord> testableRelativeCoord = new HashSet<Coord>();
-			
-			for(int horVert=1;horVert<=7;horVert++) {
-				testableRelativeCoord.add(new Coord(horVert,horVert));
-				testableRelativeCoord.add(new Coord(-horVert,horVert));
-				testableRelativeCoord.add(new Coord(horVert,-horVert));
-				testableRelativeCoord.add(new Coord(-horVert,-horVert));
-			}
-			
-			return testableRelativeCoord;
 		}
 		
 		public int hashCode() {return super.hashCode();}
@@ -970,7 +1041,7 @@ public class GameState {
 			} else if(pieceColour==PieceColour.BLACK) {
 				super.REP_CHAR = '♝';
 			}
-			//this.relativeCoordSet = testableRelativeCoord(); //TESTING
+			super.relativeCoords = bishopRelativeCoords;
 		}
 	}
 	public class Knight extends Piece {
@@ -984,22 +1055,6 @@ public class GameState {
 			} else {
 				return true;
 			}
-		}
-		public Set<Coord> testableRelativeCoord() {
-			Set<Coord> testableRelativeCoord = new HashSet<Coord>();
-			
-			//"vertical" knight moves
-			testableRelativeCoord.add(new Coord(1,2));
-			testableRelativeCoord.add(new Coord(1,-2));
-			testableRelativeCoord.add(new Coord(-1,2));
-			testableRelativeCoord.add(new Coord(-1,-2));
-			//"horizontal" knight moves
-			testableRelativeCoord.add(new Coord(2,1));
-			testableRelativeCoord.add(new Coord(2,-1));
-			testableRelativeCoord.add(new Coord(-2,1));
-			testableRelativeCoord.add(new Coord(-2,-1));
-			
-			return testableRelativeCoord;
 		}
 		
 		public int hashCode() {return super.hashCode();}
@@ -1023,7 +1078,7 @@ public class GameState {
 			} else if(pieceColour==PieceColour.BLACK) {
 				super.REP_CHAR = '♞';
 			}
-			//this.relativeCoordSet = testableRelativeCoord(); //TESTING
+			super.relativeCoords = knightRelativeCoords;
 			this.collisionChecking = false;
 		}
 	}
@@ -1037,26 +1092,6 @@ public class GameState {
 			} else {
 				return true;
 			}
-		}
-		public Set<Coord> testableRelativeCoord() {
-			Set<Coord> testableRelativeCoord = new HashSet<Coord>();
-			
-			//vertical and horizontal moves
-			for(int horVert=-7;horVert<=7;horVert++) {
-				if(horVert!=0) {
-					testableRelativeCoord.add(new Coord(horVert,0));
-					testableRelativeCoord.add(new Coord(0,horVert));
-				}
-			}
-			//diagonal moves
-			for(int horVert=1;horVert<=7;horVert++) {
-				testableRelativeCoord.add(new Coord(horVert,horVert));
-				testableRelativeCoord.add(new Coord(-horVert,horVert));
-				testableRelativeCoord.add(new Coord(horVert,-horVert));
-				testableRelativeCoord.add(new Coord(-horVert,-horVert));
-			}
-			
-			return testableRelativeCoord;
 		}
 		
 		public int hashCode() {return super.hashCode();}
@@ -1080,7 +1115,7 @@ public class GameState {
 			} else if(pieceColour==PieceColour.BLACK) {
 				super.REP_CHAR = '♛';
 			}
-			//this.relativeCoordSet = testableRelativeCoord(); //TESTING
+			super.relativeCoords = queenRelativeCoords;
 		}
 	}
 	public class King extends Piece {
@@ -1089,9 +1124,6 @@ public class GameState {
 		public void makeMovePieceSpecific(Move move) {
 			makeMovePieceCommon(move);
 			this.hasMoved = true;
-			//remove castle from list of possible moves
-			relativeCoordSet.remove(new Coord(2,0));
-			relativeCoordSet.remove(new Coord(-2,0));
 			//check if you are castling
 			if(Move.absCoordDeltaFromMove(move).equals(new Coord(2,0))) {
 				//castle with the rook located at the rook's origin which is in the direction of the castle
@@ -1167,20 +1199,6 @@ public class GameState {
 			}
 			return true;
 		}
-		public Set<Coord> testableRelativeCoord() {
-			Set<Coord> testableRelativeCoord = new HashSet<Coord>();
-
-			//standard moves
-			testableRelativeCoord.add(new Coord(1,1));
-			testableRelativeCoord.add(new Coord(1,-1));
-			testableRelativeCoord.add(new Coord(-1,1));
-			testableRelativeCoord.add(new Coord(-1,-1));
-			//castling
-			testableRelativeCoord.add(new Coord(2,0));
-			testableRelativeCoord.add(new Coord(-2,0));
-			
-			return testableRelativeCoord;
-		}
 		
 		public int hashCode() {return super.hashCode();}
 		public boolean equals(Object o) {
@@ -1206,7 +1224,7 @@ public class GameState {
 				super.REP_CHAR = '♚';
 			}
 			this.hasMoved = false;
-			//this.relativeCoordSet = testableRelativeCoord(); //TESTING
+			super.relativeCoords = kingRelativeCoords;
 		}
 	}
 	
