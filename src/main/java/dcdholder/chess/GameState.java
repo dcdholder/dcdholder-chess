@@ -54,7 +54,7 @@ public class GameState {
 		//TODO: decide whether I want to do this with try-catch clauses or not
 		while(true) {
 			try {
-				//will look something like this -> h-c (human white player, computer black player)
+				//will look something like this -> h-o (human white player, onePlyAi black player)
 				System.out.println("Enter a player config, or enter 'q' to quit: ");
 				BufferedReader cliInput = new BufferedReader(new InputStreamReader(System.in));
 				String inputLine = "";
@@ -65,7 +65,7 @@ public class GameState {
 					e.printStackTrace();
 				}
 				
-				Pattern tmpConfigRegex = Pattern.compile("(?<whitePlayer>[hc])-(?<blackPlayer>[hc])");
+				Pattern tmpConfigRegex = Pattern.compile("(?<whitePlayer>[hro])-(?<blackPlayer>[hro])");
 				Matcher tmpConfigMatch = tmpConfigRegex.matcher(inputLine);
 				
 				if(inputLine.equals("q")) {
@@ -74,17 +74,21 @@ public class GameState {
 				if(tmpConfigMatch.find()) {
 					if(tmpConfigMatch.group("whitePlayer").equals("h")) {
 						whitePlayer = new Human(PieceColour.WHITE);
-					} else if(tmpConfigMatch.group("whitePlayer").equals("c")) {
+					} else if(tmpConfigMatch.group("whitePlayer").equals("r")) {
 						whitePlayer = new RngAi(PieceColour.WHITE);
+					} else if(tmpConfigMatch.group("whitePlayer").equals("o")) {
+						whitePlayer = new OneFoldAi(PieceColour.WHITE);
 					} else {
-						throw new IllegalArgumentException("Black player type declaration must be either 'h' or 'c'");
+						throw new IllegalArgumentException("Black player type declaration must be either 'h', 'r' or 'o'");
 					}
 					if(tmpConfigMatch.group("blackPlayer").equals("h")) {
 						blackPlayer = new Human(PieceColour.BLACK);
-					} else if(tmpConfigMatch.group("blackPlayer").equals("c")) {
+					} else if(tmpConfigMatch.group("blackPlayer").equals("r")) {
 						blackPlayer = new RngAi(PieceColour.BLACK);
+					} else if(tmpConfigMatch.group("blackPlayer").equals("o")) {
+						blackPlayer = new OneFoldAi(PieceColour.BLACK);
 					} else {
-						throw new IllegalArgumentException("White player type declaration must be either 'h' or 'c'");
+						throw new IllegalArgumentException("White player type declaration must be either 'h', 'r' or 'o'");
 					}
 					break;
 				} else {
@@ -531,8 +535,45 @@ public class GameState {
 			super(playerColour);
 		}
 	}
-	//class OneFoldAi extends Player {
-	//}
+	class OneFoldAi extends Player {
+		public Move getNextMove() {
+			int boardScore;
+			Move bestMove;
+			int bestScore = -1000000; //arbitrary, just has to be really low for now
+			//boolean betterMoveFound = false;
+			
+			//acts exactly the same way as rngAi if it doesn't find any better move (personal preference)
+			Set<Move> allLegalMoves = getAllLegalMovesWithCheck();
+			Move[] moveArray = (Move[])allLegalMoves.toArray(new Move[allLegalMoves.size()]);
+			int randomIndex = new Random().nextInt(moveArray.length);
+			bestMove = moveArray[randomIndex];
+			//evaluate the randomly-selected move
+			GameState simGame = new GameState(GameState.this);
+			simGame.movePieceAtLocation(bestMove);
+			boardScore = simGame.evalBoard(currentPlayer);
+			
+			//scans the board for a move which is better than the randomly-selected one
+			for(Move simMove : allLegalMoves) {
+				simGame = new GameState(GameState.this);
+				simGame.movePieceAtLocation(simMove);
+				boardScore = simGame.evalBoard(currentPlayer);
+				if(boardScore>bestScore) {
+					bestScore = boardScore;
+					bestMove = simMove;
+					//betterMoveFound = true;
+				}
+			}
+			return bestMove;
+		}
+		public void getAndMakeNextMove() {
+			movePieceAtLocation(getNextMove());
+		}
+		
+		OneFoldAi(OneFoldAi copyOneFoldAi) {super(copyOneFoldAi);}
+		OneFoldAi(PieceColour playerColour) {
+			super(playerColour);
+		}
+	}
 	
 	class ArbiterLogger {
 		//must be able to toggle to prevent AI move attempts from flooding output
@@ -552,6 +593,32 @@ public class GameState {
 		}
 	}
 	
+	public int evalBoard(PieceColour checkColour) {
+		//just use standard values for now
+		final int PAWN_SCORE   = 1;
+		final int KNIGHT_SCORE = 3;
+		final int BISHOP_SCORE = 3;
+		final int ROOK_SCORE   = 5;
+		final int QUEEN_SCORE  = 9;
+		int absScore;
+		int total = 0;
+		
+		for(Piece evalPiece : chessPieces) {
+			if(evalPiece instanceof Pawn) {          absScore = PAWN_SCORE;
+			} else if(evalPiece instanceof Knight) { absScore = KNIGHT_SCORE;
+			} else if(evalPiece instanceof Bishop) { absScore = BISHOP_SCORE;
+			} else if(evalPiece instanceof Rook) {   absScore = ROOK_SCORE;
+			} else if(evalPiece instanceof Queen) {  absScore = QUEEN_SCORE;
+			} else {                                 absScore = 0;
+			}
+			if(evalPiece.getColour()==checkColour) {
+				total+=absScore;
+			} else {
+				total-=absScore;
+			}
+		}
+		return total;
+	}
 	//TODO: format/locate this better
 	//static Piece Coord list generation reduce should help reduce performance penalty of board construction
 	static ArrayList<Coord> whitePawnRelativeCoords = new ArrayList<Coord>();
@@ -646,6 +713,7 @@ public class GameState {
 		boolean collisionChecking;
 		List<Coord> relativeCoords;
 		
+		public PieceColour getColour() {return this.pieceColour;}
 		public Coord getPieceCoord() {return this.pieceCoord;}
 		public char getRepChar() {return this.REP_CHAR;}
 		
