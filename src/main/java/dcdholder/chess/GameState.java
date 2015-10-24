@@ -303,10 +303,11 @@ public class GameState {
 	}
 	
 	public boolean isMoveToSquareLegalCheckless(Coord destCoord) {
-		Set<Move> legalMoves = getAllLegalMovesCheckless();
-		for(Move move : legalMoves) {
-			if(move.getDest().equals(destCoord)) {
-				return true;
+		for(Piece testPiece : chessPieces) {
+			if(Move.wouldBeLegalMoveObject(testPiece.pieceCoord,destCoord)) {
+				if(testPiece.isMoveLegalPieceSpecific(new Move(testPiece.pieceCoord,destCoord))) {
+					return true;
+				}
 			}
 		}
 		return false;
@@ -667,9 +668,18 @@ public class GameState {
 			} else {
 				total-=absScore;
 			}
+			//TODO: AI should be able to evaluate potential checkmates
+			//if(isCheckmate) {
+			//	if(loser==checkPlayer) {
+					
+			//	} else {
+					
+			//	}
+			//}
 		}
 		return total;
 	}
+	
 	//TODO: format/locate this better
 	//static Piece Coord list generation reduce should help reduce performance penalty of board construction
 	static ArrayList<Coord> whitePawnRelativeCoords = new ArrayList<Coord>();
