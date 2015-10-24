@@ -446,7 +446,7 @@ public class GameState {
 		}
 	}
 	class Human extends Player {
-		String TMP_MOVE_PATTERN = "(?<initX>[a-g])(?<initY>[0-9])-(?<destX>[a-g])(?<destY>[0-9])";
+		String TMP_MOVE_PATTERN = "(?<initX>[a-h])(?<initY>[1-8])-(?<destX>[a-h])(?<destY>[1-8])";
 		
 		public Move getNextMove() {
 			BufferedReader cliInput = new BufferedReader(new InputStreamReader(System.in));
