@@ -23,8 +23,8 @@ public class Coord {
 	}
 	
 	static public Coord subCoords(Coord coordA, Coord coordB) {
-		int newCoordX = coordB.x - coordA.x;
-		int newCoordY = coordB.y - coordA.y;
+		int newCoordX = coordA.x - coordB.x;
+		int newCoordY = coordA.y - coordB.y;
 		
 		return new Coord(newCoordX,newCoordY);
 	}
@@ -63,9 +63,7 @@ public class Coord {
 	
 	public String toString() {return "X value: " + this.x + ", Y value: " + this.y;}
 	
-	public int hashCode() {
-		return this.x+this.y;
-	}
+	public int hashCode() {return this.x*31+this.y;}
 	public boolean equals(Object o) {
 		if(o==this) {return true;}
 		if(o instanceof Coord) {

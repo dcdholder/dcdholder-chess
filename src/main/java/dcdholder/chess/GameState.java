@@ -34,17 +34,17 @@ public class GameState {
 		currentGame.drawStartScreenCli();
 		currentGame.drawConfigScreenCli();
 		//Comment in for benchmarking
-		//System.out.println(System.currentTimeMillis());
+		System.out.println(System.currentTimeMillis());
 		while(true) {
 			currentGame.updateGameState();
 			//currentGame.drawBoardCli();
 			if(!currentGame.gameOver) {
 				currentGame.currentPlayerMakeMove();
 			} else {
-				break;
+				break;	
 			}
 		}
-		//System.out.println(System.currentTimeMillis());
+		System.out.println(System.currentTimeMillis());
 		currentGame.drawBoardCli();
 		currentGame.drawEndgameScreenCli();
 	}
@@ -299,7 +299,7 @@ public class GameState {
 			return false;
 		}
 		
-		return true; //TODO: change to 'return true' once everything is ready
+		return true;
 	}
 	
 	public boolean isMoveToSquareLegalCheckless(Coord destCoord) {
@@ -682,13 +682,13 @@ public class GameState {
 	
 	//TODO: format/locate this better
 	//static Piece Coord list generation reduce should help reduce performance penalty of board construction
-	static ArrayList<Coord> whitePawnRelativeCoords = new ArrayList<Coord>();
-	static ArrayList<Coord> blackPawnRelativeCoords = new ArrayList<Coord>();
-	static ArrayList<Coord> kingRelativeCoords = new ArrayList<Coord>();
-	static ArrayList<Coord> queenRelativeCoords = new ArrayList<Coord>();
-	static ArrayList<Coord> knightRelativeCoords = new ArrayList<Coord>();
-	static ArrayList<Coord> bishopRelativeCoords = new ArrayList<Coord>();
-	static ArrayList<Coord> rookRelativeCoords = new ArrayList<Coord>();
+	static Set<Coord> whitePawnRelativeCoords = new HashSet<Coord>();
+	static Set<Coord> blackPawnRelativeCoords = new HashSet<Coord>();
+	static Set<Coord> kingRelativeCoords      = new HashSet<Coord>();
+	static Set<Coord> queenRelativeCoords     = new HashSet<Coord>();
+	static Set<Coord> knightRelativeCoords    = new HashSet<Coord>();
+	static Set<Coord> bishopRelativeCoords    = new HashSet<Coord>();
+	static Set<Coord> rookRelativeCoords      = new HashSet<Coord>();
 	static {
 		//WHITE PAWN MOVES
 		//forward moves
@@ -772,7 +772,7 @@ public class GameState {
 		Coord pieceCoord;
 		PieceColour pieceColour;
 		boolean collisionChecking;
-		List<Coord> relativeCoords;
+		Set<Coord> relativeCoords;
 		
 		public PieceColour getColour() {return this.pieceColour;}
 		public Coord getPieceCoord() {return this.pieceCoord;}
@@ -818,6 +818,17 @@ public class GameState {
 			
 			return testableMoveSet;
 		}
+		public boolean moveAgreesWithRelativeCoordList(Move testMove) {
+			if(pieceColour==currentPlayer&&Move.wouldBeLegalMoveObject(testMove.getInit(),testMove.getDest())) {
+				if(relativeCoords.contains(Move.coordDeltaFromMove(testMove))) {
+					return true;
+				} else {
+					return false;
+				}
+			} else {
+				return false;
+			}
+		}
 		
 		public void makeMovePieceCommon(Move move) {
 			if(coordContainsPiece(move.getDest())) {
@@ -845,7 +856,7 @@ public class GameState {
 				return false;
 			}
 			//check if the move is in the potential move list
-			if(!formMovesFromRelativeCoordList().contains(moveAttempt)) {
+			if(!moveAgreesWithRelativeCoordList(moveAttempt)) {
 				//for(Move tmpMove : formMovesFromRelativeCoordSet()) {
 				//	System.out.println(tmpMove.hashCode() + " " + tmpMove.equals(moveAttempt)); //TESTING
 				//}
