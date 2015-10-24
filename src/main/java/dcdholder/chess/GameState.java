@@ -20,9 +20,11 @@ public class GameState {
 	List<Piece> graveyard;
 	
 	PieceColour currentPlayer;
+	PieceColour winner;
 	boolean gameOver,isCheckmate,isStalemate;
 	int numPlies = 0;
 	int fiftyMoveRuleCounter = 0;
+	static int FIFTY_MOVE_RULE_MAX = 100;
 	
 	Player whitePlayer = new Human(PieceColour.WHITE);
 	Player blackPlayer = new Human(PieceColour.BLACK);
@@ -34,17 +36,17 @@ public class GameState {
 		currentGame.drawStartScreenCli();
 		currentGame.drawConfigScreenCli();
 		//Comment in for benchmarking
-		System.out.println(System.currentTimeMillis());
+		//System.out.println(System.currentTimeMillis());
 		while(true) {
 			currentGame.updateGameState();
-			//currentGame.drawBoardCli();
 			if(!currentGame.gameOver) {
 				currentGame.currentPlayerMakeMove();
+				//System.out.println(currentGame.numPlies);
 			} else {
 				break;	
 			}
 		}
-		System.out.println(System.currentTimeMillis());
+		//System.out.println(System.currentTimeMillis());
 		currentGame.drawBoardCli();
 		currentGame.drawEndgameScreenCli();
 	}
@@ -65,7 +67,7 @@ public class GameState {
 					e.printStackTrace();
 				}
 				
-				Pattern tmpConfigRegex = Pattern.compile("(?<whitePlayer>[hrot])-(?<blackPlayer>[hrot])");
+				Pattern tmpConfigRegex = Pattern.compile("(?<whitePlayer>[hrotef])-(?<blackPlayer>[hrotef])");
 				Matcher tmpConfigMatch = tmpConfigRegex.matcher(inputLine);
 				
 				if(inputLine.equals("q")) {
@@ -80,8 +82,12 @@ public class GameState {
 						whitePlayer = new OnePlyAi(PieceColour.WHITE);
 					} else if(tmpConfigMatch.group("whitePlayer").equals("t")) {
 						whitePlayer = new TwoPlyAi(PieceColour.WHITE);
+					} else if(tmpConfigMatch.group("whitePlayer").equals("e")) {
+						whitePlayer = new ThreePlyAi(PieceColour.WHITE);
+					} else if(tmpConfigMatch.group("whitePlayer").equals("f")) {
+						whitePlayer = new FourPlyAi(PieceColour.WHITE);
 					} else {
-						throw new IllegalArgumentException("Black player type declaration must be either 'h', 'r', 'o' or 't'");
+						throw new IllegalArgumentException("Black player type declaration must be either 'h', 'r', 'o', 't' or 'f'");
 					}
 					if(tmpConfigMatch.group("blackPlayer").equals("h")) {
 						blackPlayer = new Human(PieceColour.BLACK);
@@ -91,8 +97,12 @@ public class GameState {
 						blackPlayer = new OnePlyAi(PieceColour.BLACK);
 					} else if(tmpConfigMatch.group("blackPlayer").equals("t")) {
 						blackPlayer = new TwoPlyAi(PieceColour.BLACK);
+					} else if(tmpConfigMatch.group("blackPlayer").equals("e")) {
+						blackPlayer = new ThreePlyAi(PieceColour.BLACK);
+					} else if(tmpConfigMatch.group("blackPlayer").equals("f")) {
+						blackPlayer = new FourPlyAi(PieceColour.BLACK);
 					} else {
-						throw new IllegalArgumentException("White player type declaration must be either 'h', 'r', 'o' or 't'");
+						throw new IllegalArgumentException("White player type declaration must be either 'h', 'r', 'o', 't' or 'f'");
 					}
 					break;
 				} else {
@@ -112,10 +122,14 @@ public class GameState {
 	}
 	
 	public void drawEndgameScreenCli() {
+		/*
 		if(currentPlayer==PieceColour.WHITE && isCheckmate) {
 			System.out.println("Black player wins after " + numPlies + " plies");
 		} else if(currentPlayer==PieceColour.BLACK && isCheckmate) {
 			System.out.println("White player wins after " + numPlies + " plies");
+		*/
+		if(isCheckmate) {
+			System.out.println(winner + " wins after " + numPlies + " plies");
 		} else if(isStalemate) {
 			System.out.println("Game ends in stalemate after " + numPlies + " plies");
 		} else {
@@ -180,6 +194,8 @@ public class GameState {
 	}
 	
 	public void drawBoardCli() {
+		System.out.println("Ply " + numPlies + ":");
+		System.out.println("-------");
 		System.out.println(createBoardString());
 	}
 	
@@ -205,13 +221,14 @@ public class GameState {
 	
 	public void updateGameState() {
 		if(!gameOver) {
-			if(fiftyMoveRuleCounter==100) { //"fifty moves" corresponds to 100 plies, which are easier to keep track of
+			if(fiftyMoveRuleCounter==FIFTY_MOVE_RULE_MAX) { //"fifty moves" corresponds to 100 plies, which are easier to keep track of
 				gameOver = true;
 				isStalemate = true;
 			} else if(getAllLegalMovesWithCheck().size()==0) {
 				gameOver = true;
 				if(currentIsInCheck()) {
 					isCheckmate = true;
+					winner = getOpponentColour();
 				} else {
 					isStalemate = true;
 				}
@@ -258,6 +275,7 @@ public class GameState {
 		}
 		
 		if(pieceFound==false) {
+			drawBoardCli();
 			throw new IllegalArgumentException("Was not able to move piece at location " + initialCoord.toString() + " since none exists");
 		}
 		//switch to next player for next turn
@@ -379,16 +397,19 @@ public class GameState {
 		//check if there is an opponent piece already at that position
 		//if not, generate an opponent pawn there (remove once done)
 		//if a move to capture that piece meets checkless legality criteria, the square is under attack
+		GameState tmpGame;
+		
 		if(coordContainsPiece(evalCoord)) {
 			Piece evalPiece = getPieceAtLocation(evalCoord);
 			if(evalPiece.pieceColour==getOpponentColour()) {
-				if(isMoveToSquareLegalCheckless(evalCoord)) {return true;} else {return false;}//shallow move legality checking
+				if(isMoveToSquareLegalCheckless(evalCoord)) {return true;} else {return false;} //shallow move legality checking
 			} else {
 				return false; //the piece is owned by the current player, the current player cannot attack it
 			}
 		} else {
-			chessPieces.add(new Pawn(getOpponentColour(),evalCoord)); //temporarily add a pawn to check if it can be captured by the current player
-			if(isMoveToSquareLegalCheckless(evalCoord)) {return true;} else {return false;}
+			tmpGame = new GameState(this);
+			tmpGame.chessPieces.add(new Pawn(getOpponentColour(),evalCoord)); //temporarily add a pawn to check if it can be captured by the current player
+			if(tmpGame.isMoveToSquareLegalCheckless(evalCoord)) {return true;} else {return false;}
 		}
 	}
 	
@@ -446,7 +467,7 @@ public class GameState {
 		}
 	}
 	class Human extends Player {
-		String TMP_MOVE_PATTERN = "(?<initX>[a-h])(?<initY>[1-8])-(?<destX>[a-h])(?<destY>[1-8])";
+		String TMP_MOVE_PATTERN = "(?<initX>[a-h])(?<initY>[0-9])-(?<destX>[a-h])(?<destY>[0-9])";
 		
 		public Move getNextMove() {
 			BufferedReader cliInput = new BufferedReader(new InputStreamReader(System.in));
@@ -490,8 +511,6 @@ public class GameState {
 		//TODO: rewrite the try-catch clauses
 		public void getAndMakeNextMove() {
 			Move nextMove;
-			System.out.println("Ply " + numPlies + ":");
-			System.out.println("-------");
 			drawBoardCli();
 			
 			while(true) {
@@ -542,30 +561,9 @@ public class GameState {
 	}
 	class OnePlyAi extends Player {
 		public Move getNextMove() {
-			int boardScore, bestScore;
-			Move bestMove;
-			
-			//acts exactly the same way as rngAi if it doesn't find any better move (personal preference)
-			Set<Move> allLegalMoves = getAllLegalMovesWithCheck();
-			Move[] moveArray = (Move[])allLegalMoves.toArray(new Move[allLegalMoves.size()]);
-			int randomIndex = new Random().nextInt(moveArray.length);
-			bestMove = moveArray[randomIndex];
-			//evaluate the randomly-selected move
-			GameState simGame = new GameState(GameState.this);
-			simGame.movePieceAtLocation(bestMove);
-			bestScore = simGame.evalBoard(currentPlayer);
-			
-			//scans the board for a move which is better than the randomly-selected one
-			for(Move simMove : allLegalMoves) {
-				simGame = new GameState(GameState.this);
-				simGame.movePieceAtLocation(simMove);
-				boardScore = simGame.evalBoard(currentPlayer);
-				if(boardScore>bestScore) {
-					bestScore = boardScore;
-					bestMove = simMove;
-					//betterMoveFound = true;
-				}
-			}
+			Map<Integer,Move> moveScorePair = bruteForcePly(1,1);
+			Move bestMove = new Move();
+			for(Move tmpMove : moveScorePair.values()) {bestMove = tmpMove;} //kind of a kludgy way of doing it...
 			return bestMove;
 		}
 		public void getAndMakeNextMove() {
@@ -577,45 +575,12 @@ public class GameState {
 			super(playerColour);
 		}
 	}
-	
 	class TwoPlyAi extends Player {
 		public Move getNextMove() {
-			Move bestOfWorstMove;
-			int worstScore = 1000000;
-			int bestOfWorstScore = -1000000; //arbitrary, just has to be really low for now
-			boolean secondPlyExists = false;
-			
-			Set<Move> allLegalFirstMoves = getAllLegalMovesWithCheck();
-			Move[] moveArray = (Move[])allLegalFirstMoves.toArray(new Move[allLegalFirstMoves.size()]);
-			int randomIndex = new Random().nextInt(moveArray.length);
-			bestOfWorstMove = moveArray[randomIndex]; //start with random move just to keep eclipse happy
-			
-			//scans the board for a move which is better than the randomly-selected one
-			for(Move firstMove : allLegalFirstMoves) {
-				GameState simGame1 = new GameState(GameState.this);
-				simGame1.movePieceAtLocation(firstMove);
-				
-				worstScore = 1000000;
-				for(Move secondMove : simGame1.getAllLegalMovesWithCheck()) {
-					int boardScore;
-					
-					GameState simGame2 = new GameState(simGame1);
-					simGame2.movePieceAtLocation(secondMove);
-					boardScore = simGame2.evalBoard(currentPlayer); //evaluate the board from the perspective of the current player in the calling game instance
-					secondPlyExists = true; //check if the boardScore has been updated by the second ply
-					
-					if(boardScore<worstScore) {
-						worstScore = boardScore;
-					}
-				}
-				//we assume that the opponent will pick the move that is worst for us on his turn,
-				//and, knowing this, choose the initial move with the best worst case
-				if(secondPlyExists && worstScore>bestOfWorstScore) {
-					bestOfWorstScore = worstScore;
-					bestOfWorstMove = firstMove;
-				}
-			}
-			return bestOfWorstMove;
+			Map<Integer,Move> moveScorePair = bruteForcePly(1,2);
+			Move bestMove = new Move();
+			for(Move tmpMove : moveScorePair.values()) {bestMove = tmpMove;} //kind of a kludgy way of doing it...
+			return bestMove;
 		}
 		public void getAndMakeNextMove() {
 			movePieceAtLocation(getNextMove());
@@ -625,6 +590,96 @@ public class GameState {
 		TwoPlyAi(PieceColour playerColour) {
 			super(playerColour);
 		}
+	}
+	class ThreePlyAi extends Player {
+		public Move getNextMove() {
+			Map<Integer,Move> moveScorePair = bruteForcePly(1,3);
+			Move bestMove = new Move();
+			for(Move tmpMove : moveScorePair.values()) {bestMove = tmpMove;} //kind of a kludgy way of doing it...
+			return bestMove;
+		}
+		public void getAndMakeNextMove() {
+			movePieceAtLocation(getNextMove());
+		}
+		ThreePlyAi(TwoPlyAi copyThreePlyAi) {super(copyThreePlyAi);}
+		ThreePlyAi(PieceColour playerColour) {
+			super(playerColour);
+		}
+	}
+	class FourPlyAi extends Player {
+		public Move getNextMove() {
+			Map<Integer,Move> moveScorePair = bruteForcePly(1,4);
+			Move bestMove = new Move();
+			for(Move tmpMove : moveScorePair.values()) {bestMove = tmpMove;} //kind of a kludgy way of doing it...
+			return bestMove;
+		}
+		public void getAndMakeNextMove() {
+			movePieceAtLocation(getNextMove());
+		}
+		FourPlyAi(TwoPlyAi copyFourPlyAi) {super(copyFourPlyAi);}
+		FourPlyAi(PieceColour playerColour) {
+			super(playerColour);
+		}
+	}
+	
+	public Map<Integer,Move> bruteForcePly(int currentDepth,int maxDepth) {
+		Map<Integer,Move> moveScorePair = new HashMap<Integer,Move>();
+		Set<Move> allLegalMoves         = getAllLegalMovesWithCheck();
+		int bestScore = -1000000, worstScore = 1000000, boardScore = 0;
+		Move bestMove = new Move(), worstMove = new Move();
+		Move arbitraryMove = bestMove;
+		PieceColour initialColour;
+		GameState simGame;
+		
+		if(currentDepth%2==1) {initialColour=currentPlayer;
+		} else                {initialColour=getOpponentColour();}
+		
+		if(branchIsDead(allLegalMoves)) {
+			moveScorePair.put(this.evalBoard(initialColour,true),arbitraryMove); //it doesn't matter which move we return in this case
+			return moveScorePair;
+		}
+		
+		if(currentDepth==maxDepth) {
+			for(Move legalMove : allLegalMoves) {
+				simGame = new GameState(this);
+				simGame.movePieceAtLocation(legalMove);
+				boardScore = simGame.evalBoard(initialColour,false);
+				
+				if(boardScore<worstScore) {
+					worstScore = boardScore;
+					worstMove  = legalMove;
+				}
+				if(boardScore>bestScore) {
+					bestScore  = boardScore;
+					bestMove   = legalMove;
+				}
+			}
+		} else if(currentDepth!=maxDepth) {
+			for(Move legalMove : allLegalMoves) {
+				Map<Integer,Move> tmpMovePair = new HashMap<>();
+				
+				simGame = new GameState(this);
+				simGame.movePieceAtLocation(legalMove);
+				tmpMovePair = simGame.bruteForcePly(currentDepth+1,maxDepth);
+				
+				for(Integer tmpScore : tmpMovePair.keySet()) {boardScore = tmpScore;} //kind of a kludgy way of doing it...
+				
+				if(boardScore<worstScore) {
+					worstScore = boardScore;
+					worstMove = legalMove;
+				}
+				if(boardScore>bestScore) {
+					bestScore  = boardScore;
+					bestMove = legalMove;
+				}
+			}
+		}
+		if(currentDepth%2==0) {
+			moveScorePair.put(worstScore,worstMove);
+		} else if(currentDepth%2==1) {
+			moveScorePair.put(bestScore,bestMove);
+		}
+		return moveScorePair;
 	}
 	
 	class ArbiterLogger {
@@ -644,14 +699,17 @@ public class GameState {
 			loggerOn = true;
 		}
 	}
-	
-	public int evalBoard(PieceColour checkColour) {
+	public boolean branchIsDead(Set<Move> moveSet) {
+		return moveSet.size()==0 || fiftyMoveRuleCounter==FIFTY_MOVE_RULE_MAX;
+	}
+	public int evalBoard(PieceColour checkColour, boolean deadBranch) {
 		//just use standard values for now
-		final int PAWN_SCORE   = 1;
-		final int KNIGHT_SCORE = 3;
-		final int BISHOP_SCORE = 3;
-		final int ROOK_SCORE   = 5;
-		final int QUEEN_SCORE  = 9;
+		final int PAWN_SCORE   = 100;
+		final int KNIGHT_SCORE = 300;
+		final int BISHOP_SCORE = 300;
+		final int ROOK_SCORE   = 500;
+		final int QUEEN_SCORE  = 900;
+		final int KING_SCORE   = 100000;
 		int absScore;
 		int total = 0;
 		
@@ -668,15 +726,27 @@ public class GameState {
 			} else {
 				total-=absScore;
 			}
-			//TODO: AI should be able to evaluate potential checkmates
-			//if(isCheckmate) {
-			//	if(loser==checkPlayer) {
-					
-			//	} else {
-					
-			//	}
-			//}
 		}
+		//TODO: AI should be able to evaluate potential checkmates
+		boolean isInCheck;
+		if(checkColour==currentPlayer) {isInCheck = currentIsInCheck();
+		} else                         {isInCheck = opponentIsInCheck();}
+		if(isInCheck && checkColour==currentPlayer) {
+			total-=PAWN_SCORE / 2; //"willing to trade" half a pawn to avoid getting into check
+		} else if(isInCheck && checkColour!=currentPlayer) {
+			total+=PAWN_SCORE / 2;
+		}
+		if(deadBranch && isInCheck) {
+			if(checkColour==currentPlayer) {
+				total-=KING_SCORE;
+			} else {
+				total+=KING_SCORE;
+			}
+		}
+		if((deadBranch && !isInCheck)) {
+			total=-total-KNIGHT_SCORE; //return value depends on likelihood of a win - intended to discourage stalemates
+		}
+		
 		return total;
 	}
 	
@@ -1289,20 +1359,20 @@ public class GameState {
 			//check if the move is an attempted castle
 			if(Move.absCoordDeltaFromMove(moveAttempt).equals(new Coord(2,0))) {
 				Coord legalQueensideRookLocation = new Coord();
-				Coord legalKingsideRookLocation = new Coord();
-				Coord rookLocation = new Coord();
+				Coord legalKingsideRookLocation  = new Coord();
+				Coord rookLocation               = new Coord();
 				
 				//get the legal rook castling positions for the piece's colour
 				if(pieceColour==PieceColour.WHITE) {
 					legalQueensideRookLocation = new Coord(8,1);
-					legalKingsideRookLocation = new Coord(1,1);
+					legalKingsideRookLocation  = new Coord(1,1);
 				} else if(pieceColour==PieceColour.BLACK) {
 					legalQueensideRookLocation = new Coord(8,8);
-					legalKingsideRookLocation = new Coord(1,8);
+					legalKingsideRookLocation  = new Coord(1,8);
 				}
 				//check that the rook being moved towards exists
 				if(moveAttempt.moveIsToDirection("right")) {
-					rookLocation = new Coord(legalQueensideRookLocation);
+					rookLocation = legalQueensideRookLocation;
 				}
 				if(moveAttempt.moveIsToDirection("left")) {
 					rookLocation = new Coord(legalKingsideRookLocation);
@@ -1329,7 +1399,7 @@ public class GameState {
 				}
 				//TODO: get castling working: this code could cause trouble
 				//if any of the squares between the two are occupied
-				if(rowRangeOccupied(moveAttempt.getInit().getX(),moveAttempt.getDest().getX(),moveAttempt.getInit().getY())) {
+				if(rowRangeOccupied(moveAttempt.getInit().getX()+1,moveAttempt.getDest().getX()-1,moveAttempt.getInit().getY())) {
 					return false;
 				}
 				//if any of the squares between the two (and including those two) are under attack
@@ -1369,8 +1439,9 @@ public class GameState {
 	}
 	
 	GameState(GameState gameCopy) {
-		this.currentPlayer = gameCopy.currentPlayer;
-		this.gameOver      = gameCopy.gameOver;
+		this.currentPlayer        = gameCopy.currentPlayer;
+		this.gameOver             = gameCopy.gameOver;
+		this.fiftyMoveRuleCounter = gameCopy.fiftyMoveRuleCounter;
 		
 		//TODO: IMPORTANT - deep copy of pieces
 		this.chessPieces = new ArrayList<Piece>();
