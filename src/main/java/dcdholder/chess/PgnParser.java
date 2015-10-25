@@ -18,10 +18,82 @@ public class PgnParser {
 	//private static String SAN_PATTERN = "[0-9]+\.[\t ]+([^\t\n ]+)[\t ]+([^\t\n ]+)[\t\n ]";
 	
 	//private static String STANDARD_MOVEWORD_PATTERN = "(([QKRBN]?)([a-g]?)([1-8]?)([x]?)([a-g]?)([1-8]?))";
+	String                pgnString;
+	Map<Integer,Plyword>  plywords;    //mapped to ply numbers
+	Map<Integer,String>   sanStrings;  //mapped to move numbers
+	Map<Integer,String>   allTags;     //mapped to 
+	Map<Integer,String>   allComments; //mapped according to order within the file
+	Map<Integer,String>   plyComments; //mapped according to the ply on which the action occurs, whenever this is obvious
+	String                gameResult;
+	
+	boolean               endsInStalemate;
+	boolean               endsInCheckmate;
+	boolean               unfinished;
+	boolean               whiteWinner;
+	boolean               blackWinner;
 
+	/*
+	private void collectTags() {
+		
+	}
+	private void collectComments() {
+		
+	}
+	private void collectPlywordsAndGameResult(String strippedPgnString) {
+		final String SAN_PATTERN = "[0-9]+\\.[\t ]+([^\t\n ]+)[\t ]+([^\t\n ]+)[\t\n ]";
+		
+		Pattern sanPattern = Pattern.compile(SAN_PATTERN);
+		Matcher sanMatcher = sanPattern.matcher(strippedPgnString);
+		//generate all of the sanStrings, map the contained plies to a move object, 
+		//map the result to gameResult (throw exception if it is not during the last move)
+		int moveNum, lastMoveNum = 0, gameEndingNum = 0;
+		String gameEndString;
+		
+		if(!sanMatcher.matches()) {
+			throw new IllegalArgumentException("No SAN words found in PGN");
+		}
+		while(sanMatcher.find()) {
+			moveNum = Integer.parseInt(sanMatcher.group("moveNumber"));
+			if(moveNum!=lastMoveNum+1) {throw new IllegalArgumentException("PGN does not follow correct move ordering");}
+			plywords.put((moveNum-1)*2+1,new Plyword(moveNum, "white", sanMatcher.group("whitePly")));
+			if(sanMatcher.group("blackPly")!="") { //necessary since last ply may not contain a black ply
+				plywords.put(moveNum*2,new Plyword(moveNum, "black", sanMatcher.group("blackPly")));
+			}
+			gameEndString = sanMatcher.group("gameResult");
+			if(gameEndString!="") {
+				setGameEnding(gameEndString);
+				gameEndingNum=moveNum;
+			}
+			lastMoveNum=moveNum;
+		}
+		if(lastMoveNum!=gameEndingNum || gameEndingNum==0) {throw new IllegalArgumentException("Game endword not found in final moveword");}
+		for(int i=0;i<Collections.max(plywords.keySet());i++) { //check whether every entry in the plyword map between the first and final ply is full
+			if(!plywords.containsKey(i)) {throw new IllegalArgumentException("Ply " + i + " appears to be missing");}
+		}
+		//TODO: clear movewords
+	}
+	private void setGameEnding(String gameEndString) {
+		switch(gameEndString) {
+			case "*" :
+				unfinished = true; endsInStalemate = false; endsInCheckmate = false; whiteWinner = false; blackWinner = false;
+				break;
+			case "1/2-1/2" :
+				unfinished = false; endsInStalemate = true; endsInCheckmate = false; whiteWinner = false; blackWinner = false;
+				break;
+			case "0-1" :
+				unfinished = false; endsInStalemate = false; endsInCheckmate = true; whiteWinner = false; blackWinner = true;
+				break;
+			case "1-0" :
+				unfinished = false; endsInStalemate = false; endsInCheckmate = true; whiteWinner = true; blackWinner = false;
+				break;
+			default :
+				throw new IllegalArgumentException("End game string not in the correct format");
+		}
+	}
+	*/
 	//TODO: consider moving the SAN-Move translation code throughout class to the Move object for improved class portability, or create an intermediate object
-	public static List<Move> getMoveObjectsFile(String fileName) {
-		return getMoveObjectsString(loadPgnFileToString(fileName));
+	public static List<Move> getPlywordObjectsFile(String fileName) {
+		return getPlyObjectsString(loadPgnFileToString(fileName));
 	}
 	public static Map<Integer,String> getMoveSanFile(String fileName) {
 		return getMoveSanString(loadPgnFileToString(fileName));
@@ -46,7 +118,7 @@ public class PgnParser {
 		loadStringToPgnFile(stripMetadataString(loadPgnFileToString(fileName)),newFileName);
 	}	
 	
-	private static List<Move> getMoveObjectsString(String parseString) {
+	private static List<Move> getPlyObjectsString(String parseString) {
 		List<Move> pgnMoveObjects = new ArrayList<Move>();
 		@SuppressWarnings("unused") String nakedString = stripMetadataString(parseString);
 		
@@ -104,7 +176,7 @@ public class PgnParser {
 		return "";
 	}
 	private static String loadPgnFileToString(String fileName) {
-		//load pgn file to a string		
+		//load pgn file to a string
 		//add a space character at the end to make parsing easier (should be harmless)
 		return "";
 	}
@@ -117,7 +189,7 @@ public class PgnParser {
 	
 	//used for deep pgn validation with a full rules engine
 	//TODO: write a method to return a map of these
-	public class Moveword {
+	public class Plyword {
 		//TODO: figure out a way to make this static...
 		private Map<String,String> PIECE_CHAR_TO_TYPE_STRING = new HashMap<String,String>();
 		
@@ -131,7 +203,7 @@ public class PgnParser {
 		String pieceTypePromotion="";
 		String playerColour="";
 		
-		int moveNumber=0; //tag used in the pgn file for parent move pair
+		int plyNumber=0; //tag used in the pgn file for parent move pair
 		
 		boolean initFileSpecified=false,initRankSpecified=false;
 		
@@ -151,7 +223,7 @@ public class PgnParser {
 			this.PIECE_CHAR_TO_TYPE_STRING.put("K","king");
 		}
 		
-		Moveword(int moveNumber, String playerColour, String moveWordString) {
+		Plyword(int moveNumber, String playerColour, String moveWordString) {
 			this.initializePieceCharToTypeStringMap();
 			
 			Pattern castlingPattern = Pattern.compile(CASTLING_MOVEWORD_PATTERN);
@@ -201,5 +273,9 @@ public class PgnParser {
 				throw new IllegalArgumentException("Moveword " + moveWordString + " does not match initial filter for standard/castling format");
 			}
 		}
+	}
+	
+	PgnParser(String filename) {
+		
 	}
 }
