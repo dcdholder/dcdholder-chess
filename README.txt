@@ -6,7 +6,7 @@ This will be my third attempt at writing something like this (first in C, then i
 Should help me get familiar with Java abstract classes, nested/local classes, subclasses and interfaces.
 Not going to win any awards.
 
-DC-CHESS GAME PLAN
+GLUGGLE-CHESS GAME PLAN
 ------------------
 - Write a .pgn parser (translate from a human-readable format into a move sequence)
 - Write a method to follow the sequence and confirm that it is legal

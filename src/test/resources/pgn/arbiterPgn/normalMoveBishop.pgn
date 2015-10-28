@@ -1,0 +1,7 @@
+[Event "Testing bishop moves from the starting position (no captures)"]
+[White "PGN Parser"]
+[Black "PGN Parser"]
+[Result "*"]
+
+1. b3 b6 2. g3 g6 3. Bb2 Bb7 4. Bg2 Bg7 5. Bd4 Bd5 6. Be4 Be5 7. Bb2 Bb7 8. Bg2 Bg7 
+9. Bc1 Bc8 10. Bf1 Bf8 *

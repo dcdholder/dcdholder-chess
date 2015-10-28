@@ -1,0 +1,7 @@
+[Event "Testing normal rook moves from starting position (no captures)"]
+[White "PGN Parser"]
+[Black "PGN Parser"]
+[Result "*"]
+
+1. a4 a5 2. h4 h5 3. Ra3 Ra6 4. Rh1h3 Rh8h6 5. Rad3 Rad6 6. Rhe3 Rhe6 7. Ra3 Ra6 8. Rh3 Rh6 
+9. Ra1 Ra8 10. Rh1 Rh8 *

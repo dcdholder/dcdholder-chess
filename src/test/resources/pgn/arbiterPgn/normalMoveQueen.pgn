@@ -1,0 +1,7 @@
+[Event "Testing queen moves from starting position (no captures)"]
+[White "PGN Parser"]
+[Black "PGN Parser"]
+[Result "*"]
+
+1. e3 e6 2. Qg4 Qg5 3. Qa4 Qa5 4. Qd4 Qd5 5. Qd3 Qd6 6. Qd4 Qd5 7. Qc5 Qc4 8. Qb4 Qb5 
+9. Qc3 Qc6 *

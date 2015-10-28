@@ -1,0 +1,6 @@
+[Event "Testing queenside castle (no captures)"]
+[White "PGN Parser"]
+[Black "PGN Parser"]
+[Result "*"]
+
+1. e3 e6 2. Qf3 Qf6 3. b3 b6 4. Ba3 Ba6 5. Nc3 Nc6 6. O-O-O O-O-O *

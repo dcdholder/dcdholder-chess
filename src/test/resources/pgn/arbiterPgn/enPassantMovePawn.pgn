@@ -1,0 +1,6 @@
+[Event "Testing en-passant captures"]
+[White "PGN Parser"]
+[Black "PGN Parser"]
+[Result "*"]
+
+1. b4 g5 2. b5 g4 3. h4 gxh3 4. d3 a5 5. bxa6 *

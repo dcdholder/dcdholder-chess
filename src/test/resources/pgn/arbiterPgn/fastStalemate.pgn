@@ -1,0 +1,7 @@
+[Event "Testing fast stalemate with no captures (courtesy Sam Loyd)"]
+[White "PGN Parser"]
+[Black "PGN Parser"]
+[Result "1/2-1/2"]
+
+1.d4 d6 2.Qd2 e5 3.a4 e4 4.Qf4 f5 5.h3 Be7 6.Qh2 Be6 7.Ra3 c5 8.Rg3 Qa5+ 
+9.Nd2 Bh4 10.f3 Bb3 11.d5 e3 12.c4 f4 1/2-1/2

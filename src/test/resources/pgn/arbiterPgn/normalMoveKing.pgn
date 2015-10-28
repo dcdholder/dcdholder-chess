@@ -1,0 +1,7 @@
+[Event "Testing normal king moves from starting position (no captures)"]
+[White "PGN Parser"]
+[Black "PGN Parser"]
+[Result "*"]
+
+1. e4 e5 2. Ke2 Ke7 3. Kd3 Kd6 4. Ke2 Ke7 5. Kf3 Kf6 6. Ke2 Ke7 7. Ke3 Ke6 8. Kd3 Kd6 
+9. Ke3 Ke6 10. Ke2 Ke7 11. Ke1 Ke8 *

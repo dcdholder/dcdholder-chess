@@ -1,0 +1,6 @@
+[Event "Testing pawn promotion to queen (post-promotion move made to verify promotion)"]
+[White "PGN Parser"]
+[Black "PGN Parser"]
+[Result "*"]
+
+1. b4 g5 2. b5 g4 3. b6 g3 4. bxa7 gxh2 5. axb8=Q hxg1=Q 6. Qa7 Qh2 7. Qe3 Qd6 *
