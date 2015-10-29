@@ -19,6 +19,7 @@ public class PgnParser {
 	
 	//private static String STANDARD_MOVEWORD_PATTERN = "(([QKRBN]?)([a-g]?)([1-8]?)([x]?)([a-g]?)([1-8]?))";
 	String                pgnString;
+	Map<Integer,Move>     plyMove;
 	Map<Integer,Plyword>  plywords;    //mapped to ply numbers
 	Map<Integer,String>   sanStrings;  //mapped to move numbers
 	Map<Integer,String>   allTags;     //mapped to 
@@ -39,7 +40,7 @@ public class PgnParser {
 	private void collectComments() {
 		
 	}
-	private void collectPlywordsAndGameResult(String strippedPgnString) {
+	private String collectPlywordsAndGameResult(String strippedPgnString) {
 		final String SAN_PATTERN = "[0-9]+\\.[\t ]+([^\t\n ]+)[\t ]+([^\t\n ]+)[\t\n ]";
 		
 		Pattern sanPattern = Pattern.compile(SAN_PATTERN);
@@ -70,7 +71,7 @@ public class PgnParser {
 		for(int i=0;i<Collections.max(plywords.keySet());i++) { //check whether every entry in the plyword map between the first and final ply is full
 			if(!plywords.containsKey(i)) {throw new IllegalArgumentException("Ply " + i + " appears to be missing");}
 		}
-		//TODO: clear movewords
+		strippedPgnString = sanMatcher.replaceAll("");
 	}
 	private void setGameEnding(String gameEndString) {
 		switch(gameEndString) {
@@ -90,7 +91,18 @@ public class PgnParser {
 				throw new IllegalArgumentException("End game string not in the correct format");
 		}
 	}
+	private String collectTags(String pgnString) {
+		
+		strippedPgnString = tagMatcher.replaceAll("")
+	}
 	*/
+	public Move getMovePlyNumber(int plyNum) {
+		if(plyMove.containsKey(plyNum)) {
+			return plyMove.get(plyNum);
+		} else {
+			throw new IllegalArgumentException("PGN file does not contain a move corresponding to ply " + plyNum);
+		}
+	}
 	//TODO: consider moving the SAN-Move translation code throughout class to the Move object for improved class portability, or create an intermediate object
 	public static List<Move> getPlywordObjectsFile(String fileName) {
 		return getPlyObjectsString(loadPgnFileToString(fileName));

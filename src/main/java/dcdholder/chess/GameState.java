@@ -87,7 +87,7 @@ public class GameState {
 					} else if(tmpConfigMatch.group("whitePlayer").equals("f")) {
 						whitePlayer = new FourPlyAi(PieceColour.WHITE);
 					} else {
-						throw new IllegalArgumentException("Black player type declaration must be either 'h', 'r', 'o', 't' or 'f'");
+						throw new IllegalArgumentException("Black player type declaration must be either 'h', 'r', 'o', 't', 'e' or 'f'");
 					}
 					if(tmpConfigMatch.group("blackPlayer").equals("h")) {
 						blackPlayer = new Human(PieceColour.BLACK);
@@ -102,7 +102,7 @@ public class GameState {
 					} else if(tmpConfigMatch.group("blackPlayer").equals("f")) {
 						blackPlayer = new FourPlyAi(PieceColour.BLACK);
 					} else {
-						throw new IllegalArgumentException("White player type declaration must be either 'h', 'r', 'o', 't' or 'f'");
+						throw new IllegalArgumentException("White player type declaration must be either 'h', 'r', 'o', 't','e' or 'f'");
 					}
 					break;
 				} else {
@@ -262,6 +262,11 @@ public class GameState {
 	}
 	
 	public void movePieceAtLocation(Move moveAttempt) {
+		movePieceAtLocationWithoutSwitching(moveAttempt);
+		switchPlayer(); //switch to next player for next turn
+	}
+	//necessary for castling
+	public void movePieceAtLocationWithoutSwitching(Move moveAttempt) {
 		Coord initialCoord = moveAttempt.getInit();
 		Coord destCoord = moveAttempt.getDest();
 		boolean pieceFound = false;
@@ -277,12 +282,6 @@ public class GameState {
 		if(pieceFound==false) {
 			drawBoardCli();
 			throw new IllegalArgumentException("Was not able to move piece at location " + initialCoord.toString() + " since none exists");
-		}
-		//switch to next player for next turn
-		if(currentPlayer==PieceColour.WHITE) {
-			currentPlayer=PieceColour.BLACK;
-		} else {
-			currentPlayer=PieceColour.WHITE;
 		}
 	}
 	
@@ -467,7 +466,7 @@ public class GameState {
 		}
 	}
 	class Human extends Player {
-		String TMP_MOVE_PATTERN = "(?<initX>[a-h])(?<initY>[0-9])-(?<destX>[a-h])(?<destY>[0-9])";
+		String TMP_MOVE_PATTERN = "(?<initX>[a-h])(?<initY>[1-8])-(?<destX>[a-h])(?<destY>[1-8])";
 		
 		public Move getNextMove() {
 			BufferedReader cliInput = new BufferedReader(new InputStreamReader(System.in));
@@ -601,7 +600,7 @@ public class GameState {
 		public void getAndMakeNextMove() {
 			movePieceAtLocation(getNextMove());
 		}
-		ThreePlyAi(TwoPlyAi copyThreePlyAi) {super(copyThreePlyAi);}
+		ThreePlyAi(ThreePlyAi copyThreePlyAi) {super(copyThreePlyAi);}
 		ThreePlyAi(PieceColour playerColour) {
 			super(playerColour);
 		}
@@ -616,9 +615,31 @@ public class GameState {
 		public void getAndMakeNextMove() {
 			movePieceAtLocation(getNextMove());
 		}
-		FourPlyAi(TwoPlyAi copyFourPlyAi) {super(copyFourPlyAi);}
+		FourPlyAi(FourPlyAi copyFourPlyAi) {super(copyFourPlyAi);}
 		FourPlyAi(PieceColour playerColour) {
 			super(playerColour);
+		}
+	}
+	class PgnPlayer extends Player { //use this to recover saved games and to run rules-engine tests
+		PgnParser gameParser;
+		
+		public Move getNextMove() {
+			if(isMoveLegalWithCheck(gameParser.getMovePlyNumber(numPlies))) {
+				return gameParser.getMovePlyNumber(numPlies);
+			} else {
+				throw new IllegalArgumentException("PGN contains illegal move");
+			}
+		}
+		public void getAndMakeNextMove() {
+			movePieceAtLocation(getNextMove());
+		}
+		PgnPlayer(PgnPlayer copyPgnPlayer) {
+			super(copyPgnPlayer);
+			this.gameParser = copyPgnPlayer.gameParser;
+		}
+		PgnPlayer(PieceColour playerColour,String pgnFilename) {
+			super(playerColour);
+			gameParser = new PgnParser(pgnFilename);
 		}
 	}
 	
@@ -1339,15 +1360,15 @@ public class GameState {
 				//castle with the rook located at the rook's origin which is in the direction of the castle
 				if(move.moveIsToDirection("right")) {
 					if(pieceColour==PieceColour.WHITE) {
-						movePieceAtLocation(new Move(new Coord(8,1),new Coord(6,1)));
+						movePieceAtLocationWithoutSwitching(new Move(new Coord(8,1),new Coord(6,1)));
 					} else if(pieceColour==PieceColour.BLACK) {
-						movePieceAtLocation(new Move(new Coord(8,8),new Coord(6,8)));
+						movePieceAtLocationWithoutSwitching(new Move(new Coord(8,8),new Coord(6,8)));
 					}
 				} else if (move.moveIsToDirection("left")) {
 					if(pieceColour==PieceColour.WHITE) {
-						movePieceAtLocation(new Move(new Coord(1,1),new Coord(4,1)));
+						movePieceAtLocationWithoutSwitching(new Move(new Coord(1,1),new Coord(4,1)));
 					} else if(pieceColour==PieceColour.BLACK) {
-						movePieceAtLocation(new Move(new Coord(1,8),new Coord(4,8)));
+						movePieceAtLocationWithoutSwitching(new Move(new Coord(1,8),new Coord(4,8)));
 					}
 				}
 			}
@@ -1364,18 +1385,18 @@ public class GameState {
 				
 				//get the legal rook castling positions for the piece's colour
 				if(pieceColour==PieceColour.WHITE) {
-					legalQueensideRookLocation = new Coord(8,1);
-					legalKingsideRookLocation  = new Coord(1,1);
+					legalQueensideRookLocation = new Coord(1,1);
+					legalKingsideRookLocation  = new Coord(8,1);
 				} else if(pieceColour==PieceColour.BLACK) {
-					legalQueensideRookLocation = new Coord(8,8);
-					legalKingsideRookLocation  = new Coord(1,8);
+					legalQueensideRookLocation = new Coord(1,8);
+					legalKingsideRookLocation  = new Coord(8,8);
 				}
 				//check that the rook being moved towards exists
 				if(moveAttempt.moveIsToDirection("right")) {
-					rookLocation = legalQueensideRookLocation;
+					rookLocation = legalKingsideRookLocation;
 				}
 				if(moveAttempt.moveIsToDirection("left")) {
-					rookLocation = new Coord(legalKingsideRookLocation);
+					rookLocation = legalQueensideRookLocation;
 				}
 				//check that a piece exists at that location and is in fact a rook
 				//check that the rook being moved towards has not yet moved
@@ -1399,8 +1420,14 @@ public class GameState {
 				}
 				//TODO: get castling working: this code could cause trouble
 				//if any of the squares between the two are occupied
-				if(rowRangeOccupied(moveAttempt.getInit().getX()+1,moveAttempt.getDest().getX()-1,moveAttempt.getInit().getY())) {
-					return false;
+				if(rookLocation.equals(legalKingsideRookLocation)) {
+					if(rowRangeOccupied(moveAttempt.getInit().getX()+1,moveAttempt.getDest().getX()-1,moveAttempt.getInit().getY())) {
+						return false;
+					}
+				} else if(rookLocation.equals(legalQueensideRookLocation)) {
+					if(rowRangeOccupied(moveAttempt.getInit().getX()-1,moveAttempt.getDest().getX()+1,moveAttempt.getInit().getY())) {
+						return false;
+					}
 				}
 				//if any of the squares between the two (and including those two) are under attack
 				if(rowRangeUnderAttackByOpponent(moveAttempt.getInit().getX(),moveAttempt.getDest().getX(),moveAttempt.getInit().getY())) {

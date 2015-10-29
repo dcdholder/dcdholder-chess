@@ -1,6 +1,5 @@
 package dcdholder.chess;
 
-//TODO: fix Move methods which "fake" the static modifier, and calls to Coord methods which do the same
 public class Move {
 	private Coord init;
 	private Coord dest;
@@ -8,7 +7,6 @@ public class Move {
 	public Coord getInit() {return this.init;}
 	public Coord getDest() {return this.dest;}
 	
-	//figure out if there's a way to make this static
 	public static boolean wouldBeLegalMoveObject(Coord init, Coord dest) {
 		if(init.bothDimsBetween1And8()&&dest.bothDimsBetween1And8()&&!init.equals(dest)) {
 			return true;
