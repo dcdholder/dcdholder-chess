@@ -40,6 +40,7 @@ public class GameState {
 		while(true) {
 			currentGame.updateGameState();
 			if(!currentGame.gameOver) {
+				currentGame.drawBoardCli();
 				currentGame.currentPlayerMakeMove();
 				//System.out.println(currentGame.numPlies);
 			} else {
@@ -47,7 +48,7 @@ public class GameState {
 			}
 		}
 		//System.out.println(System.currentTimeMillis());
-		currentGame.drawBoardCli();
+		//currentGame.drawBoardCli();
 		currentGame.drawEndgameScreenCli();
 	}
 
@@ -67,7 +68,7 @@ public class GameState {
 					e.printStackTrace();
 				}
 				
-				Pattern tmpConfigRegex = Pattern.compile("(?<whitePlayer>[hrotef])-(?<blackPlayer>[hrotef])");
+				Pattern tmpConfigRegex = Pattern.compile("(?<whitePlayer>[hrotefv])-(?<blackPlayer>[hrotefv])");
 				Matcher tmpConfigMatch = tmpConfigRegex.matcher(inputLine);
 				
 				if(inputLine.equals("q")) {
@@ -86,8 +87,10 @@ public class GameState {
 						whitePlayer = new ThreePlyAi(PieceColour.WHITE);
 					} else if(tmpConfigMatch.group("whitePlayer").equals("f")) {
 						whitePlayer = new FourPlyAi(PieceColour.WHITE);
+					} else if(tmpConfigMatch.group("whitePlayer").equals("v")) {
+						whitePlayer = new FivePlyAi(PieceColour.WHITE);
 					} else {
-						throw new IllegalArgumentException("Black player type declaration must be either 'h', 'r', 'o', 't', 'e' or 'f'");
+						throw new IllegalArgumentException("Black player type declaration must be either 'h', 'r', 'o', 't', 'e','f' or 'v'");
 					}
 					if(tmpConfigMatch.group("blackPlayer").equals("h")) {
 						blackPlayer = new Human(PieceColour.BLACK);
@@ -101,8 +104,10 @@ public class GameState {
 						blackPlayer = new ThreePlyAi(PieceColour.BLACK);
 					} else if(tmpConfigMatch.group("blackPlayer").equals("f")) {
 						blackPlayer = new FourPlyAi(PieceColour.BLACK);
+					} else if(tmpConfigMatch.group("blackPlayer").equals("v")) {
+						blackPlayer = new FivePlyAi(PieceColour.BLACK);
 					} else {
-						throw new IllegalArgumentException("White player type declaration must be either 'h', 'r', 'o', 't','e' or 'f'");
+						throw new IllegalArgumentException("White player type declaration must be either 'h', 'r', 'o', 't','e','f' or 'v'");
 					}
 					break;
 				} else {
@@ -122,12 +127,6 @@ public class GameState {
 	}
 	
 	public void drawEndgameScreenCli() {
-		/*
-		if(currentPlayer==PieceColour.WHITE && isCheckmate) {
-			System.out.println("Black player wins after " + numPlies + " plies");
-		} else if(currentPlayer==PieceColour.BLACK && isCheckmate) {
-			System.out.println("White player wins after " + numPlies + " plies");
-		*/
 		if(isCheckmate) {
 			System.out.println(winner + " wins after " + numPlies + " plies");
 		} else if(isStalemate) {
@@ -560,10 +559,7 @@ public class GameState {
 	}
 	class OnePlyAi extends Player {
 		public Move getNextMove() {
-			Map<Integer,Move> moveScorePair = bruteForcePly(1,1);
-			Move bestMove = new Move();
-			for(Move tmpMove : moveScorePair.values()) {bestMove = tmpMove;} //kind of a kludgy way of doing it...
-			return bestMove;
+			return alphaBetaPlyMove(1);
 		}
 		public void getAndMakeNextMove() {
 			movePieceAtLocation(getNextMove());
@@ -576,10 +572,7 @@ public class GameState {
 	}
 	class TwoPlyAi extends Player {
 		public Move getNextMove() {
-			Map<Integer,Move> moveScorePair = bruteForcePly(1,2);
-			Move bestMove = new Move();
-			for(Move tmpMove : moveScorePair.values()) {bestMove = tmpMove;} //kind of a kludgy way of doing it...
-			return bestMove;
+			return alphaBetaPlyMove(2);
 		}
 		public void getAndMakeNextMove() {
 			movePieceAtLocation(getNextMove());
@@ -592,10 +585,7 @@ public class GameState {
 	}
 	class ThreePlyAi extends Player {
 		public Move getNextMove() {
-			Map<Integer,Move> moveScorePair = bruteForcePly(1,3);
-			Move bestMove = new Move();
-			for(Move tmpMove : moveScorePair.values()) {bestMove = tmpMove;} //kind of a kludgy way of doing it...
-			return bestMove;
+			return alphaBetaPlyMove(3);
 		}
 		public void getAndMakeNextMove() {
 			movePieceAtLocation(getNextMove());
@@ -607,16 +597,25 @@ public class GameState {
 	}
 	class FourPlyAi extends Player {
 		public Move getNextMove() {
-			Map<Integer,Move> moveScorePair = bruteForcePly(1,4);
-			Move bestMove = new Move();
-			for(Move tmpMove : moveScorePair.values()) {bestMove = tmpMove;} //kind of a kludgy way of doing it...
-			return bestMove;
+			return alphaBetaPlyMove(4);
 		}
 		public void getAndMakeNextMove() {
 			movePieceAtLocation(getNextMove());
 		}
 		FourPlyAi(FourPlyAi copyFourPlyAi) {super(copyFourPlyAi);}
 		FourPlyAi(PieceColour playerColour) {
+			super(playerColour);
+		}
+	}
+	class FivePlyAi extends Player {
+		public Move getNextMove() {
+			return alphaBetaPlyMove(5);
+		}
+		public void getAndMakeNextMove() {
+			movePieceAtLocation(getNextMove());
+		}
+		FivePlyAi(FourPlyAi copyFivePlyAi) {super(copyFivePlyAi);}
+		FivePlyAi(PieceColour playerColour) {
 			super(playerColour);
 		}
 	}
@@ -642,7 +641,83 @@ public class GameState {
 			gameParser = new PgnParser(pgnFilename);
 		}
 	}
-	
+	public Move alphaBetaPlyMove(int maxDepth) {
+		Move bestMove = new Move();
+		Map<Integer,Move> scoreMoveMap = alphaBetaPly(0,maxDepth,Integer.MIN_VALUE,Integer.MAX_VALUE,currentPlayer);
+		for(Move tmpMove : scoreMoveMap.values()) {bestMove = tmpMove;}
+		//for(Integer someint : scoreMoveMap.keySet()) {System.out.println(someint);}
+		return bestMove;
+	}
+	public Map<Integer,Move> alphaBetaPly(int currentDepth,int maxDepth,int minimumGuaranteed,int maximumGuaranteed,PieceColour initialPlayer) {
+		Map<Integer,Move> moveScorePair = new HashMap<Integer,Move>();
+		GameState simGame;
+		
+		if(currentDepth==maxDepth) {
+			moveScorePair.put(this.evalBoard(initialPlayer,false),new Move()); //use dummy value for move
+			return moveScorePair;
+		} else {
+			Set<Move> allLegalMoves = getAllLegalMovesWithCheck();
+			//int numPossMoves = allLegalMoves.size();
+			//int branchesExamined = 0;
+			if(branchIsDead(allLegalMoves)) {
+				moveScorePair.put(this.evalBoard(initialPlayer,true),new Move()); //use dummy value for move
+				return moveScorePair;
+			}
+			if(this.currentPlayer!=initialPlayer) {
+				int score = 0;
+				int smallestScoreInBatch=Integer.MAX_VALUE;
+				Move smallestScoreInBatchMove = new Move();
+				for(Move evalMove: allLegalMoves) {
+					simGame = new GameState(this);
+					simGame.movePieceAtLocation(evalMove);
+					//search for dead games here
+					Map<Integer,Move> scoreMoveMap = simGame.alphaBetaPly(currentDepth+1,maxDepth,smallestScoreInBatch,maximumGuaranteed,initialPlayer);
+					for(Integer tmpScore : scoreMoveMap.keySet()) {score = tmpScore;}
+					//System.out.println(scoreMoveMap.size());
+					
+					//branchesExamined++; //
+					if(score<=smallestScoreInBatch) {
+						smallestScoreInBatch=score;
+						smallestScoreInBatchMove=evalMove;
+					}
+					if(smallestScoreInBatch<=minimumGuaranteed) { //evaluating black moves with respect to white score, based on previous node searches by white
+						break;
+					}
+				}
+				//System.out.println(branchesExamined + "/" + numPossMoves);
+				moveScorePair.put(smallestScoreInBatch,smallestScoreInBatchMove);
+				return moveScorePair;
+			} else if(this.currentPlayer==initialPlayer) {
+				int score = 0;
+				int largestScoreInBatch=Integer.MIN_VALUE;
+				Move largestScoreInBatchMove = new Move();
+				for(Move evalMove: allLegalMoves) {
+					simGame = new GameState(this);
+					simGame.movePieceAtLocation(evalMove);
+					//search for dead games here
+					Map<Integer,Move> scoreMoveMap = simGame.alphaBetaPly(currentDepth+1,maxDepth,minimumGuaranteed,largestScoreInBatch,initialPlayer);
+					for(Integer tmpScore : scoreMoveMap.keySet()) {score = tmpScore;}
+					//scoreMoveMap.size();
+					//System.out.println(score);
+					
+					//branchesExamined++; //
+					if(score>=largestScoreInBatch) {
+						largestScoreInBatch=score;
+						largestScoreInBatchMove=evalMove;
+					}
+					//System.out.println(score);
+					//System.out.println(maximumGuaranteed);
+					if(largestScoreInBatch>=maximumGuaranteed) {
+						break;
+					}
+				}
+				//System.out.println(branchesExamined + "/" + numPossMoves);
+				moveScorePair.put(largestScoreInBatch,largestScoreInBatchMove);
+				return moveScorePair;
+			}
+		}
+		return moveScorePair;
+	}
 	public Map<Integer,Move> bruteForcePly(int currentDepth,int maxDepth) {
 		Map<Integer,Move> moveScorePair = new HashMap<Integer,Move>();
 		Set<Move> allLegalMoves         = getAllLegalMovesWithCheck();
@@ -703,6 +778,7 @@ public class GameState {
 		return moveScorePair;
 	}
 	
+	
 	class ArbiterLogger {
 		//must be able to toggle to prevent AI move attempts from flooding output
 		boolean loggerOn;
@@ -746,6 +822,15 @@ public class GameState {
 				total+=absScore;
 			} else {
 				total-=absScore;
+			}
+		}
+		int tmpScore = 0;
+		for(Piece testPiece : chessPieces) {
+			if(testPiece instanceof King) {
+				tmpScore = testPiece.getLegalMovesWithCheck().size()*PAWN_SCORE/10;
+				if(testPiece.pieceColour!=checkColour) {
+					total-=tmpScore;
+				}
 			}
 		}
 		//TODO: AI should be able to evaluate potential checkmates
