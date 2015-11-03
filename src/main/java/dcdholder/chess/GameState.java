@@ -2,6 +2,7 @@ package dcdholder.chess;
 import java.util.*;
 import java.util.regex.*;
 import java.io.*;
+import java.util.concurrent.*;
 
 //All conceivable moves for a given square are added to a list
 //This list is passed into an arbiter, which spits out the list of moves which are legal
@@ -48,7 +49,7 @@ public class GameState {
 			}
 		}
 		//System.out.println(System.currentTimeMillis());
-		//currentGame.drawBoardCli();
+		currentGame.drawBoardCli();
 		currentGame.drawEndgameScreenCli();
 	}
 
@@ -57,7 +58,7 @@ public class GameState {
 		//TODO: decide whether I want to do this with try-catch clauses or not
 		while(true) {
 			try {
-				//will look something like this -> h-o (human white player, onePlyAi black player)
+				//will look something like this -> h-8 (human white player, 8-ply-depth black player)
 				System.out.println("Enter a player config, or enter 'q' to quit: ");
 				BufferedReader cliInput = new BufferedReader(new InputStreamReader(System.in));
 				String inputLine = "";
@@ -68,7 +69,7 @@ public class GameState {
 					e.printStackTrace();
 				}
 				
-				Pattern tmpConfigRegex = Pattern.compile("(?<whitePlayer>[hrotefv])-(?<blackPlayer>[hrotefv])");
+				Pattern tmpConfigRegex = Pattern.compile("(?<whitePlayer>[hr1-7])-(?<blackPlayer>[hr1-7])");
 				Matcher tmpConfigMatch = tmpConfigRegex.matcher(inputLine);
 				
 				if(inputLine.equals("q")) {
@@ -79,35 +80,15 @@ public class GameState {
 						whitePlayer = new Human(PieceColour.WHITE);
 					} else if(tmpConfigMatch.group("whitePlayer").equals("r")) {
 						whitePlayer = new RngAi(PieceColour.WHITE);
-					} else if(tmpConfigMatch.group("whitePlayer").equals("o")) {
-						whitePlayer = new OnePlyAi(PieceColour.WHITE);
-					} else if(tmpConfigMatch.group("whitePlayer").equals("t")) {
-						whitePlayer = new TwoPlyAi(PieceColour.WHITE);
-					} else if(tmpConfigMatch.group("whitePlayer").equals("e")) {
-						whitePlayer = new ThreePlyAi(PieceColour.WHITE);
-					} else if(tmpConfigMatch.group("whitePlayer").equals("f")) {
-						whitePlayer = new FourPlyAi(PieceColour.WHITE);
-					} else if(tmpConfigMatch.group("whitePlayer").equals("v")) {
-						whitePlayer = new FivePlyAi(PieceColour.WHITE);
 					} else {
-						throw new IllegalArgumentException("Black player type declaration must be either 'h', 'r', 'o', 't', 'e','f' or 'v'");
+						whitePlayer = new StaticPlyAi(PieceColour.WHITE, Integer.parseInt(tmpConfigMatch.group("whitePlayer")));
 					}
 					if(tmpConfigMatch.group("blackPlayer").equals("h")) {
 						blackPlayer = new Human(PieceColour.BLACK);
 					} else if(tmpConfigMatch.group("blackPlayer").equals("r")) {
 						blackPlayer = new RngAi(PieceColour.BLACK);
-					} else if(tmpConfigMatch.group("blackPlayer").equals("o")) {
-						blackPlayer = new OnePlyAi(PieceColour.BLACK);
-					} else if(tmpConfigMatch.group("blackPlayer").equals("t")) {
-						blackPlayer = new TwoPlyAi(PieceColour.BLACK);
-					} else if(tmpConfigMatch.group("blackPlayer").equals("e")) {
-						blackPlayer = new ThreePlyAi(PieceColour.BLACK);
-					} else if(tmpConfigMatch.group("blackPlayer").equals("f")) {
-						blackPlayer = new FourPlyAi(PieceColour.BLACK);
-					} else if(tmpConfigMatch.group("blackPlayer").equals("v")) {
-						blackPlayer = new FivePlyAi(PieceColour.BLACK);
 					} else {
-						throw new IllegalArgumentException("White player type declaration must be either 'h', 'r', 'o', 't','e','f' or 'v'");
+						blackPlayer = new StaticPlyAi(PieceColour.BLACK, Integer.parseInt(tmpConfigMatch.group("blackPlayer")));
 					}
 					break;
 				} else {
@@ -121,8 +102,8 @@ public class GameState {
 	}
 	
 	public void drawStartScreenCli() {
-		System.out.println("DC-CHESS");
-		System.out.println("--------");
+		System.out.println("GLUGGLE-CHESS");
+		System.out.println("-------------");
 		System.out.println("");
 	}
 	
@@ -509,7 +490,7 @@ public class GameState {
 		//TODO: rewrite the try-catch clauses
 		public void getAndMakeNextMove() {
 			Move nextMove;
-			drawBoardCli();
+			//drawBoardCli();
 			
 			while(true) {
 				try {
@@ -557,66 +538,22 @@ public class GameState {
 			super(playerColour);
 		}
 	}
-	class OnePlyAi extends Player {
-		public Move getNextMove() {
-			return alphaBetaPlyMove(1);
-		}
-		public void getAndMakeNextMove() {
-			movePieceAtLocation(getNextMove());
-		}
+	class StaticPlyAi extends Player {
+		private int plyDepth;
 		
-		OnePlyAi(OnePlyAi copyOneFoldAi) {super(copyOneFoldAi);}
-		OnePlyAi(PieceColour playerColour) {
-			super(playerColour);
-		}
-	}
-	class TwoPlyAi extends Player {
 		public Move getNextMove() {
-			return alphaBetaPlyMove(2);
+			return alphaBetaPlyMove(plyDepth);
 		}
 		public void getAndMakeNextMove() {
 			movePieceAtLocation(getNextMove());
 		}
-		
-		TwoPlyAi(TwoPlyAi copyTwoPlyAi) {super(copyTwoPlyAi);}
-		TwoPlyAi(PieceColour playerColour) {
+		StaticPlyAi(StaticPlyAi copyStaticPlyAi) {
+			super(copyStaticPlyAi);
+			this.plyDepth=copyStaticPlyAi.plyDepth;
+		}
+		StaticPlyAi(PieceColour playerColour,int plyDepth) {
 			super(playerColour);
-		}
-	}
-	class ThreePlyAi extends Player {
-		public Move getNextMove() {
-			return alphaBetaPlyMove(3);
-		}
-		public void getAndMakeNextMove() {
-			movePieceAtLocation(getNextMove());
-		}
-		ThreePlyAi(ThreePlyAi copyThreePlyAi) {super(copyThreePlyAi);}
-		ThreePlyAi(PieceColour playerColour) {
-			super(playerColour);
-		}
-	}
-	class FourPlyAi extends Player {
-		public Move getNextMove() {
-			return alphaBetaPlyMove(4);
-		}
-		public void getAndMakeNextMove() {
-			movePieceAtLocation(getNextMove());
-		}
-		FourPlyAi(FourPlyAi copyFourPlyAi) {super(copyFourPlyAi);}
-		FourPlyAi(PieceColour playerColour) {
-			super(playerColour);
-		}
-	}
-	class FivePlyAi extends Player {
-		public Move getNextMove() {
-			return alphaBetaPlyMove(5);
-		}
-		public void getAndMakeNextMove() {
-			movePieceAtLocation(getNextMove());
-		}
-		FivePlyAi(FourPlyAi copyFivePlyAi) {super(copyFivePlyAi);}
-		FivePlyAi(PieceColour playerColour) {
-			super(playerColour);
+			this.plyDepth=plyDepth;
 		}
 	}
 	class PgnPlayer extends Player { //use this to recover saved games and to run rules-engine tests
@@ -643,9 +580,14 @@ public class GameState {
 	}
 	public Move alphaBetaPlyMove(int maxDepth) {
 		Move bestMove = new Move();
-		Map<Integer,Move> scoreMoveMap = alphaBetaPly(0,maxDepth,Integer.MIN_VALUE,Integer.MAX_VALUE,currentPlayer);
+		Map<Integer,Move> scoreMoveMap = alphaBetaPly(0,maxDepth,Integer.MAX_VALUE,Integer.MIN_VALUE,currentPlayer);
 		for(Move tmpMove : scoreMoveMap.values()) {bestMove = tmpMove;}
-		//for(Integer someint : scoreMoveMap.keySet()) {System.out.println(someint);}
+		return bestMove;
+	}
+	public Move bruteForcePlyMove(int maxDepth) {
+		Move bestMove = new Move();
+		Map<Integer,Move> scoreMoveMap = bruteForcePly(1,maxDepth);
+		for(Move tmpMove : scoreMoveMap.values()) {bestMove = tmpMove;}
 		return bestMove;
 	}
 	public Map<Integer,Move> alphaBetaPly(int currentDepth,int maxDepth,int minimumGuaranteed,int maximumGuaranteed,PieceColour initialPlayer) {
@@ -653,14 +595,16 @@ public class GameState {
 		GameState simGame;
 		
 		if(currentDepth==maxDepth) {
-			moveScorePair.put(this.evalBoard(initialPlayer,false),new Move()); //use dummy value for move
+			moveScorePair.put(this.evalBoard(initialPlayer,currentDepth,false),new Move()); //use dummy value for move
 			return moveScorePair;
 		} else {
-			Set<Move> allLegalMoves = getAllLegalMovesWithCheck();
+			Set<Move> allLegalMovesSet = getAllLegalMovesWithCheck();
+			Move[] allLegalMoves = (Move[])allLegalMovesSet.toArray(new Move[allLegalMovesSet.size()]); //randomizing move order to make openings more interesting
+			
 			//int numPossMoves = allLegalMoves.size();
 			//int branchesExamined = 0;
-			if(branchIsDead(allLegalMoves)) {
-				moveScorePair.put(this.evalBoard(initialPlayer,true),new Move()); //use dummy value for move
+			if(branchIsDead(allLegalMovesSet)) {
+				moveScorePair.put(this.evalBoard(initialPlayer,currentDepth+1,true),new Move()); //use dummy value for move
 				return moveScorePair;
 			}
 			if(this.currentPlayer!=initialPlayer) {
@@ -671,7 +615,7 @@ public class GameState {
 					simGame = new GameState(this);
 					simGame.movePieceAtLocation(evalMove);
 					//search for dead games here
-					Map<Integer,Move> scoreMoveMap = simGame.alphaBetaPly(currentDepth+1,maxDepth,smallestScoreInBatch,maximumGuaranteed,initialPlayer);
+					Map<Integer,Move> scoreMoveMap = simGame.alphaBetaPly(currentDepth+1,maxDepth,minimumGuaranteed,maximumGuaranteed,initialPlayer);
 					for(Integer tmpScore : scoreMoveMap.keySet()) {score = tmpScore;}
 					//System.out.println(scoreMoveMap.size());
 					
@@ -680,12 +624,15 @@ public class GameState {
 						smallestScoreInBatch=score;
 						smallestScoreInBatchMove=evalMove;
 					}
-					if(smallestScoreInBatch<=minimumGuaranteed) { //evaluating black moves with respect to white score, based on previous node searches by white
+					if(smallestScoreInBatch<=minimumGuaranteed) {
+						minimumGuaranteed=smallestScoreInBatch;
+					}
+					if(minimumGuaranteed<=maximumGuaranteed) {
 						break;
 					}
 				}
 				//System.out.println(branchesExamined + "/" + numPossMoves);
-				moveScorePair.put(smallestScoreInBatch,smallestScoreInBatchMove);
+				moveScorePair.put(minimumGuaranteed,smallestScoreInBatchMove);
 				return moveScorePair;
 			} else if(this.currentPlayer==initialPlayer) {
 				int score = 0;
@@ -695,24 +642,29 @@ public class GameState {
 					simGame = new GameState(this);
 					simGame.movePieceAtLocation(evalMove);
 					//search for dead games here
-					Map<Integer,Move> scoreMoveMap = simGame.alphaBetaPly(currentDepth+1,maxDepth,minimumGuaranteed,largestScoreInBatch,initialPlayer);
+					Map<Integer,Move> scoreMoveMap = simGame.alphaBetaPly(currentDepth+1,maxDepth,minimumGuaranteed,maximumGuaranteed,initialPlayer);
 					for(Integer tmpScore : scoreMoveMap.keySet()) {score = tmpScore;}
 					//scoreMoveMap.size();
 					//System.out.println(score);
 					
 					//branchesExamined++; //
+					if(score>largestScoreInBatch) {
+						largestScoreInBatchMove=evalMove;
+					}
 					if(score>=largestScoreInBatch) {
 						largestScoreInBatch=score;
-						largestScoreInBatchMove=evalMove;
+					}
+					if(largestScoreInBatch>=maximumGuaranteed) {
+						maximumGuaranteed=largestScoreInBatch;
 					}
 					//System.out.println(score);
 					//System.out.println(maximumGuaranteed);
-					if(largestScoreInBatch>=maximumGuaranteed) {
+					if(minimumGuaranteed<=maximumGuaranteed) {
 						break;
 					}
 				}
 				//System.out.println(branchesExamined + "/" + numPossMoves);
-				moveScorePair.put(largestScoreInBatch,largestScoreInBatchMove);
+				moveScorePair.put(maximumGuaranteed,largestScoreInBatchMove);
 				return moveScorePair;
 			}
 		}
@@ -731,7 +683,7 @@ public class GameState {
 		} else                {initialColour=getOpponentColour();}
 		
 		if(branchIsDead(allLegalMoves)) {
-			moveScorePair.put(this.evalBoard(initialColour,true),arbitraryMove); //it doesn't matter which move we return in this case
+			moveScorePair.put(this.evalBoard(initialColour,currentDepth,true),arbitraryMove); //it doesn't matter which move we return in this case
 			return moveScorePair;
 		}
 		
@@ -739,7 +691,7 @@ public class GameState {
 			for(Move legalMove : allLegalMoves) {
 				simGame = new GameState(this);
 				simGame.movePieceAtLocation(legalMove);
-				boardScore = simGame.evalBoard(initialColour,false);
+				boardScore = simGame.evalBoard(initialColour,currentDepth,false);
 				
 				if(boardScore<worstScore) {
 					worstScore = boardScore;
@@ -778,7 +730,6 @@ public class GameState {
 		return moveScorePair;
 	}
 	
-	
 	class ArbiterLogger {
 		//must be able to toggle to prevent AI move attempts from flooding output
 		boolean loggerOn;
@@ -799,7 +750,7 @@ public class GameState {
 	public boolean branchIsDead(Set<Move> moveSet) {
 		return moveSet.size()==0 || fiftyMoveRuleCounter==FIFTY_MOVE_RULE_MAX;
 	}
-	public int evalBoard(PieceColour checkColour, boolean deadBranch) {
+	public int evalBoard(PieceColour checkColour, int plyDepth, boolean deadBranch) {
 		//just use standard values for now
 		final int PAWN_SCORE   = 100;
 		final int KNIGHT_SCORE = 300;
@@ -807,8 +758,12 @@ public class GameState {
 		final int ROOK_SCORE   = 500;
 		final int QUEEN_SCORE  = 900;
 		final int KING_SCORE   = 100000;
+		final int FUZZ_CENTIPAWNS = 4;
+		
+		int MATE_SPEED_BONUS = KING_SCORE-(KING_SCORE/10)*plyDepth;
+		int FUZZ_FACTOR      = ThreadLocalRandom.current().nextInt(FUZZ_CENTIPAWNS); //do I need to double up on randomization?
 		int absScore;
-		int total = 0;
+		int total = FUZZ_FACTOR;
 		
 		for(Piece evalPiece : chessPieces) {
 			if(evalPiece instanceof Pawn) {          absScore = PAWN_SCORE;
@@ -834,25 +789,30 @@ public class GameState {
 			}
 		}
 		//TODO: AI should be able to evaluate potential checkmates
-		boolean isInCheck;
-		if(checkColour==currentPlayer) {isInCheck = currentIsInCheck();
-		} else                         {isInCheck = opponentIsInCheck();}
-		if(isInCheck && checkColour==currentPlayer) {
+		//only checks if the INITIAL player is in check...
+		boolean initialIsInCheck,opponentIsInCheck;
+		if(checkColour==currentPlayer) { //a little confusing...
+			initialIsInCheck         = currentIsInCheck();
+			opponentIsInCheck = opponentIsInCheck();
+		} else                         {
+			initialIsInCheck         = opponentIsInCheck();
+			opponentIsInCheck = currentIsInCheck();
+		}
+		//if(deadBranch) System.out.println(deadBranch);
+		if(initialIsInCheck) {
 			total-=PAWN_SCORE / 2; //"willing to trade" half a pawn to avoid getting into check
-		} else if(isInCheck && checkColour!=currentPlayer) {
+		} else if(opponentIsInCheck) {
 			total+=PAWN_SCORE / 2;
 		}
-		if(deadBranch && isInCheck) {
-			if(checkColour==currentPlayer) {
-				total-=KING_SCORE;
-			} else {
-				total+=KING_SCORE;
-			}
+		if(deadBranch && initialIsInCheck) {
+			total-=KING_SCORE;
+		} else if(deadBranch && opponentIsInCheck) {
+			total+=KING_SCORE;
+			total+=MATE_SPEED_BONUS;
 		}
-		if((deadBranch && !isInCheck)) {
+		if(deadBranch && !initialIsInCheck && !opponentIsInCheck) {
 			total=-total-KNIGHT_SCORE; //return value depends on likelihood of a win - intended to discourage stalemates
 		}
-		
 		return total;
 	}
 	
@@ -1584,7 +1544,34 @@ public class GameState {
 		
 		this.logger = new ArbiterLogger(gameCopy.logger);
 	}
-	
+	GameState(String debugMode) {
+		this();
+		chessPieces.clear();
+		
+		switch(debugMode) {
+			case "mateInOne": //black king constrained to a single rank by a rook, white to move with another rook at his disposal (requires 1/2 lookahead)
+				chessPieces.add(new King(PieceColour.WHITE,new Coord(5,1)));
+				chessPieces.add(new King(PieceColour.BLACK,new Coord(5,8)));
+				chessPieces.add(new Rook(PieceColour.WHITE,new Coord(1,7)));
+				chessPieces.add(new Rook(PieceColour.WHITE,new Coord(8,1)));
+				break;
+			case "mateInTwo": //essentially the "move before" mateInOne, king not yet constrained to his home rank (requires 3/4 lookahead)
+				chessPieces.add(new King(PieceColour.WHITE,new Coord(5,1)));
+				chessPieces.add(new King(PieceColour.BLACK,new Coord(4,8)));
+				chessPieces.add(new Rook(PieceColour.WHITE,new Coord(1,1))); //white rook has not yet constrained black king to home rank
+				chessPieces.add(new Rook(PieceColour.WHITE,new Coord(8,1)));
+				break;
+			case "mateInThree": //mating in the center of a mostly-empty board, three rooks looking on (requires 5/6 lookahead)
+				chessPieces.add(new King(PieceColour.WHITE,new Coord(5,1)));
+				chessPieces.add(new King(PieceColour.BLACK,new Coord(3,5)));
+				chessPieces.add(new Rook(PieceColour.WHITE,new Coord(8,1)));
+				chessPieces.add(new Rook(PieceColour.WHITE,new Coord(8,2)));
+				chessPieces.add(new Rook(PieceColour.WHITE,new Coord(8,3)));
+				break;
+			default:
+				throw new IllegalArgumentException("Invalid board setup debug mode");
+		}
+	}
 	GameState() {
 		this.currentPlayer = PieceColour.WHITE;
 		this.gameOver = false;
