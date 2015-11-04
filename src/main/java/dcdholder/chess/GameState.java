@@ -2,7 +2,7 @@ package dcdholder.chess;
 import java.util.*;
 import java.util.regex.*;
 import java.io.*;
-import java.util.concurrent.*;
+//import java.util.concurrent.*;
 
 //All conceivable moves for a given square are added to a list
 //This list is passed into an arbiter, which spits out the list of moves which are legal
@@ -29,8 +29,6 @@ public class GameState {
 	
 	Player whitePlayer = new Human(PieceColour.WHITE);
 	Player blackPlayer = new Human(PieceColour.BLACK);
-	
-	ArbiterLogger logger = new ArbiterLogger();
 	
 	public static void main (String[] args) {
 		GameState currentGame = new GameState();
@@ -542,7 +540,8 @@ public class GameState {
 		private int plyDepth;
 		
 		public Move getNextMove() {
-			return alphaBetaPlyMove(plyDepth);
+			EvaluationEngine engine = new EvaluationEngine(GameState.this,"alphaBeta",plyDepth);
+			return engine.alphaBetaPlyMove(plyDepth);
 		}
 		public void getAndMakeNextMove() {
 			movePieceAtLocation(getNextMove());
@@ -577,243 +576,6 @@ public class GameState {
 			super(playerColour);
 			gameParser = new PgnParser(pgnFilename);
 		}
-	}
-	public Move alphaBetaPlyMove(int maxDepth) {
-		Move bestMove = new Move();
-		Map<Integer,Move> scoreMoveMap = alphaBetaPly(0,maxDepth,Integer.MAX_VALUE,Integer.MIN_VALUE,currentPlayer);
-		for(Move tmpMove : scoreMoveMap.values()) {bestMove = tmpMove;}
-		return bestMove;
-	}
-	public Move bruteForcePlyMove(int maxDepth) {
-		Move bestMove = new Move();
-		Map<Integer,Move> scoreMoveMap = bruteForcePly(1,maxDepth);
-		for(Move tmpMove : scoreMoveMap.values()) {bestMove = tmpMove;}
-		return bestMove;
-	}
-	public Map<Integer,Move> alphaBetaPly(int currentDepth,int maxDepth,int minimumGuaranteed,int maximumGuaranteed,PieceColour initialPlayer) {
-		Map<Integer,Move> moveScorePair = new HashMap<Integer,Move>();
-		GameState simGame;
-		
-		if(currentDepth==maxDepth) {
-			moveScorePair.put(this.evalBoard(initialPlayer,currentDepth,false),new Move()); //use dummy value for move
-			return moveScorePair;
-		} else {
-			Set<Move> allLegalMovesSet = getAllLegalMovesWithCheck();
-			Move[] allLegalMoves = (Move[])allLegalMovesSet.toArray(new Move[allLegalMovesSet.size()]); //randomizing move order to make openings more interesting
-			
-			//int numPossMoves = allLegalMoves.size();
-			//int branchesExamined = 0;
-			if(branchIsDead(allLegalMovesSet)) {
-				moveScorePair.put(this.evalBoard(initialPlayer,currentDepth+1,true),new Move()); //use dummy value for move
-				return moveScorePair;
-			}
-			if(this.currentPlayer!=initialPlayer) {
-				int score = 0;
-				int smallestScoreInBatch=Integer.MAX_VALUE;
-				Move smallestScoreInBatchMove = new Move();
-				for(Move evalMove: allLegalMoves) {
-					simGame = new GameState(this);
-					simGame.movePieceAtLocation(evalMove);
-					//search for dead games here
-					Map<Integer,Move> scoreMoveMap = simGame.alphaBetaPly(currentDepth+1,maxDepth,minimumGuaranteed,maximumGuaranteed,initialPlayer);
-					for(Integer tmpScore : scoreMoveMap.keySet()) {score = tmpScore;}
-					//System.out.println(scoreMoveMap.size());
-					
-					//branchesExamined++; //
-					if(score<=smallestScoreInBatch) {
-						smallestScoreInBatch=score;
-						smallestScoreInBatchMove=evalMove;
-					}
-					if(smallestScoreInBatch<=minimumGuaranteed) {
-						minimumGuaranteed=smallestScoreInBatch;
-					}
-					if(minimumGuaranteed<=maximumGuaranteed) {
-						break;
-					}
-				}
-				//System.out.println(branchesExamined + "/" + numPossMoves);
-				moveScorePair.put(minimumGuaranteed,smallestScoreInBatchMove);
-				return moveScorePair;
-			} else if(this.currentPlayer==initialPlayer) {
-				int score = 0;
-				int largestScoreInBatch=Integer.MIN_VALUE;
-				Move largestScoreInBatchMove = new Move();
-				for(Move evalMove: allLegalMoves) {
-					simGame = new GameState(this);
-					simGame.movePieceAtLocation(evalMove);
-					//search for dead games here
-					Map<Integer,Move> scoreMoveMap = simGame.alphaBetaPly(currentDepth+1,maxDepth,minimumGuaranteed,maximumGuaranteed,initialPlayer);
-					for(Integer tmpScore : scoreMoveMap.keySet()) {score = tmpScore;}
-					//scoreMoveMap.size();
-					//System.out.println(score);
-					
-					//branchesExamined++; //
-					if(score>largestScoreInBatch) {
-						largestScoreInBatchMove=evalMove;
-					}
-					if(score>=largestScoreInBatch) {
-						largestScoreInBatch=score;
-					}
-					if(largestScoreInBatch>=maximumGuaranteed) {
-						maximumGuaranteed=largestScoreInBatch;
-					}
-					//System.out.println(score);
-					//System.out.println(maximumGuaranteed);
-					if(minimumGuaranteed<=maximumGuaranteed) {
-						break;
-					}
-				}
-				//System.out.println(branchesExamined + "/" + numPossMoves);
-				moveScorePair.put(maximumGuaranteed,largestScoreInBatchMove);
-				return moveScorePair;
-			}
-		}
-		return moveScorePair;
-	}
-	public Map<Integer,Move> bruteForcePly(int currentDepth,int maxDepth) {
-		Map<Integer,Move> moveScorePair = new HashMap<Integer,Move>();
-		Set<Move> allLegalMoves         = getAllLegalMovesWithCheck();
-		int bestScore = -1000000, worstScore = 1000000, boardScore = 0;
-		Move bestMove = new Move(), worstMove = new Move();
-		Move arbitraryMove = bestMove;
-		PieceColour initialColour;
-		GameState simGame;
-		
-		if(currentDepth%2==1) {initialColour=currentPlayer;
-		} else                {initialColour=getOpponentColour();}
-		
-		if(branchIsDead(allLegalMoves)) {
-			moveScorePair.put(this.evalBoard(initialColour,currentDepth,true),arbitraryMove); //it doesn't matter which move we return in this case
-			return moveScorePair;
-		}
-		
-		if(currentDepth==maxDepth) {
-			for(Move legalMove : allLegalMoves) {
-				simGame = new GameState(this);
-				simGame.movePieceAtLocation(legalMove);
-				boardScore = simGame.evalBoard(initialColour,currentDepth,false);
-				
-				if(boardScore<worstScore) {
-					worstScore = boardScore;
-					worstMove  = legalMove;
-				}
-				if(boardScore>bestScore) {
-					bestScore  = boardScore;
-					bestMove   = legalMove;
-				}
-			}
-		} else if(currentDepth!=maxDepth) {
-			for(Move legalMove : allLegalMoves) {
-				Map<Integer,Move> tmpMovePair = new HashMap<>();
-				
-				simGame = new GameState(this);
-				simGame.movePieceAtLocation(legalMove);
-				tmpMovePair = simGame.bruteForcePly(currentDepth+1,maxDepth);
-				
-				for(Integer tmpScore : tmpMovePair.keySet()) {boardScore = tmpScore;} //kind of a kludgy way of doing it...
-				
-				if(boardScore<worstScore) {
-					worstScore = boardScore;
-					worstMove = legalMove;
-				}
-				if(boardScore>bestScore) {
-					bestScore  = boardScore;
-					bestMove = legalMove;
-				}
-			}
-		}
-		if(currentDepth%2==0) {
-			moveScorePair.put(worstScore,worstMove);
-		} else if(currentDepth%2==1) {
-			moveScorePair.put(bestScore,bestMove);
-		}
-		return moveScorePair;
-	}
-	
-	class ArbiterLogger {
-		//must be able to toggle to prevent AI move attempts from flooding output
-		boolean loggerOn;
-		
-		//will be made more sophisticated later
-		public void log(String arbiterMessage) {
-			System.out.println("");
-		}
-		
-		//does nothing extra for now, may need to copy log information in the future
-		ArbiterLogger(ArbiterLogger copyLogger) {
-			this();
-		}
-		ArbiterLogger() {
-			loggerOn = true;
-		}
-	}
-	public boolean branchIsDead(Set<Move> moveSet) {
-		return moveSet.size()==0 || fiftyMoveRuleCounter==FIFTY_MOVE_RULE_MAX;
-	}
-	public int evalBoard(PieceColour checkColour, int plyDepth, boolean deadBranch) {
-		//just use standard values for now
-		final int PAWN_SCORE   = 100;
-		final int KNIGHT_SCORE = 300;
-		final int BISHOP_SCORE = 300;
-		final int ROOK_SCORE   = 500;
-		final int QUEEN_SCORE  = 900;
-		final int KING_SCORE   = 100000;
-		final int FUZZ_CENTIPAWNS = 4;
-		
-		int MATE_SPEED_BONUS = KING_SCORE-(KING_SCORE/10)*plyDepth;
-		int FUZZ_FACTOR      = ThreadLocalRandom.current().nextInt(FUZZ_CENTIPAWNS); //do I need to double up on randomization?
-		int absScore;
-		int total = FUZZ_FACTOR;
-		
-		for(Piece evalPiece : chessPieces) {
-			if(evalPiece instanceof Pawn) {          absScore = PAWN_SCORE;
-			} else if(evalPiece instanceof Knight) { absScore = KNIGHT_SCORE;
-			} else if(evalPiece instanceof Bishop) { absScore = BISHOP_SCORE;
-			} else if(evalPiece instanceof Rook) {   absScore = ROOK_SCORE;
-			} else if(evalPiece instanceof Queen) {  absScore = QUEEN_SCORE;
-			} else {                                 absScore = 0;
-			}
-			if(evalPiece.getColour()==checkColour) {
-				total+=absScore;
-			} else {
-				total-=absScore;
-			}
-		}
-		int tmpScore = 0;
-		for(Piece testPiece : chessPieces) {
-			if(testPiece instanceof King) {
-				tmpScore = testPiece.getLegalMovesWithCheck().size()*PAWN_SCORE/10;
-				if(testPiece.pieceColour!=checkColour) {
-					total-=tmpScore;
-				}
-			}
-		}
-		//TODO: AI should be able to evaluate potential checkmates
-		//only checks if the INITIAL player is in check...
-		boolean initialIsInCheck,opponentIsInCheck;
-		if(checkColour==currentPlayer) { //a little confusing...
-			initialIsInCheck         = currentIsInCheck();
-			opponentIsInCheck = opponentIsInCheck();
-		} else                         {
-			initialIsInCheck         = opponentIsInCheck();
-			opponentIsInCheck = currentIsInCheck();
-		}
-		//if(deadBranch) System.out.println(deadBranch);
-		if(initialIsInCheck) {
-			total-=PAWN_SCORE / 2; //"willing to trade" half a pawn to avoid getting into check
-		} else if(opponentIsInCheck) {
-			total+=PAWN_SCORE / 2;
-		}
-		if(deadBranch && initialIsInCheck) {
-			total-=KING_SCORE;
-		} else if(deadBranch && opponentIsInCheck) {
-			total+=KING_SCORE;
-			total+=MATE_SPEED_BONUS;
-		}
-		if(deadBranch && !initialIsInCheck && !opponentIsInCheck) {
-			total=-total-KNIGHT_SCORE; //return value depends on likelihood of a win - intended to discourage stalemates
-		}
-		return total;
 	}
 	
 	//TODO: format/locate this better
@@ -1541,8 +1303,6 @@ public class GameState {
 		} else if(gameCopy.whitePlayer instanceof RngAi) {this.whitePlayer = new RngAi((RngAi)gameCopy.whitePlayer);}
 		if(gameCopy.blackPlayer instanceof Human) {this.whitePlayer = new Human((Human)gameCopy.blackPlayer);
 		} else if(gameCopy.blackPlayer instanceof RngAi) {this.whitePlayer = new RngAi((RngAi)gameCopy.blackPlayer);}
-		
-		this.logger = new ArbiterLogger(gameCopy.logger);
 	}
 	GameState(String debugMode) {
 		this();
