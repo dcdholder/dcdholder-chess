@@ -15,27 +15,32 @@ import dcdholder.chess.GameState.Queen;
 import dcdholder.chess.GameState.Rook;
 
 //TODO: get the threading implementation all worked out
-public class EvaluationEngine implements Callable<Move> {
-	static boolean THREADING_ENABLED=false;
+public class EvaluationEngine implements Callable<Map<Integer,Move>> {
+	boolean    threadingEnabled=false;
+	static int MAX_THREADS=4;
 	
 	String engineType;
-	int initDepth;
+	int maxDepth;
 	GameState gameCopy;
 	
-	public Move call() {
-		if(engineType=="alphaBeta")    {return alphaBetaPlyMove(initDepth);}
-		else if(engineType=="miniMax") {return bruteForcePlyMove(initDepth);}
+	int seedDepth;
+	int seedMax;
+	int seedMin;
+	
+	public Map<Integer,Move> call() {
+		if(engineType=="alphaBeta")    {return alphaBetaPly(seedDepth,maxDepth,seedMin,seedMax,gameCopy.getOpponentColour());}
+		//else if(engineType=="miniMax") {return;}
 		else {throw new IllegalArgumentException("Invalid engine type");}
 	}
-	public Move alphaBetaPlyMove(int maxDepth) {
+	public Move alphaBetaPlyMove() {
 		Move bestMove = new Move();
-		Map<Integer,Move> scoreMoveMap = alphaBetaPly(0,maxDepth,Integer.MAX_VALUE,Integer.MIN_VALUE,gameCopy.currentPlayer);
+		Map<Integer,Move> scoreMoveMap = alphaBetaPly(0,this.maxDepth,Integer.MAX_VALUE,Integer.MIN_VALUE,gameCopy.currentPlayer);
 		for(Move tmpMove : scoreMoveMap.values()) {bestMove = tmpMove;}
 		return bestMove;
 	}
-	public Move bruteForcePlyMove(int maxDepth) {
+	public Move bruteForcePlyMove() {
 		Move bestMove = new Move();
-		Map<Integer,Move> scoreMoveMap = bruteForcePly(1,maxDepth);
+		Map<Integer,Move> scoreMoveMap = bruteForcePly(1,this.maxDepth);
 		for(Move tmpMove : scoreMoveMap.values()) {bestMove = tmpMove;}
 		return bestMove;
 	}
@@ -48,9 +53,9 @@ public class EvaluationEngine implements Callable<Move> {
 			return moveScorePair;
 		} else {
 			Set<Move> allLegalMovesSet = gameCopy.getAllLegalMovesWithCheck();
-			Move[] allLegalMoves = (Move[])allLegalMovesSet.toArray(new Move[allLegalMovesSet.size()]); //randomizing move order to make openings more interesting
+			Move[] allLegalMoves = allLegalMovesSet.toArray(new Move[allLegalMovesSet.size()]); //randomizing move order to make openings more interesting
 			
-			//int numPossMoves = allLegalMoves.size();
+			//if(currentDepth==0) System.out.println(allLegalMoves.length); //TESTING
 			//int branchesExamined = 0;
 			if(branchIsDead(allLegalMovesSet)) {
 				moveScorePair.put(this.evalBoard(initialPlayer,currentDepth+1,true),new Move()); //use dummy value for move
@@ -61,7 +66,7 @@ public class EvaluationEngine implements Callable<Move> {
 				int smallestScoreInBatch=Integer.MAX_VALUE;
 				Move smallestScoreInBatchMove = new Move();
 				for(Move evalMove: allLegalMoves) {
-					simEngine = new EvaluationEngine(gameCopy,"alphaBeta",initDepth);
+					simEngine = new EvaluationEngine(this);
 					simEngine.gameCopy.movePieceAtLocation(evalMove);
 					//search for dead games here
 					Map<Integer,Move> scoreMoveMap = simEngine.alphaBetaPly(currentDepth+1,maxDepth,minimumGuaranteed,maximumGuaranteed,initialPlayer);
@@ -87,11 +92,71 @@ public class EvaluationEngine implements Callable<Move> {
 				int score = 0;
 				int largestScoreInBatch=Integer.MIN_VALUE;
 				Move largestScoreInBatchMove = new Move();
-				for(Move evalMove: allLegalMoves) {
-					if(THREADING_ENABLED && currentDepth==0) {
-						//enter threading code here
-					} else {
-						simEngine = new EvaluationEngine(gameCopy,"alphaBeta",initDepth);
+				
+				if(threadingEnabled && currentDepth==0) {
+					//evaluate a batch of moves at a time, rather than just one
+					//compare game speed with same move sequence and core count, also without multithreading
+					int moveIndex=0;
+					
+					while(moveIndex<allLegalMoves.length) { //first create groups of moves to be evaluated simultaneously
+						Move[] moveGroup;
+						Thread[] evaluationThreadGroup;
+						FutureTask<Map<Integer,Move>>[] evaluationTaskGroup;
+						Map<Integer,Move>[] finalResult;
+						
+						if(moveIndex+MAX_THREADS<=allLegalMoves.length) {
+							moveGroup = new Move[MAX_THREADS];
+							evaluationThreadGroup = new Thread[MAX_THREADS];
+							for(int i=0;i<MAX_THREADS;i++) {
+								moveGroup[i] = allLegalMoves[moveIndex];
+							}
+							moveIndex+=MAX_THREADS;
+						} else {
+							moveGroup = new Move[allLegalMoves.length-moveIndex];
+							evaluationThreadGroup = new Thread[allLegalMoves.length-moveIndex];
+							for(int i=0;i<allLegalMoves.length-moveIndex;i++) {
+								moveGroup[i] = allLegalMoves[moveIndex];
+							}
+							moveIndex=allLegalMoves.length; //signifies that this is the last move group
+						}
+						
+						//System.out.println(moveGroup.length); //TESTING
+						evaluationThreadGroup = new Thread[moveGroup.length];
+						evaluationTaskGroup = new FutureTask[moveGroup.length];
+						finalResult = (Map<Integer, Move>[]) new HashMap[moveGroup.length];
+						
+						for(int i=0;i<moveGroup.length;i++) { //generate the threads, initiate evaluation
+							simEngine = new EvaluationEngine(this,1,minimumGuaranteed,maximumGuaranteed);
+							simEngine.gameCopy.movePieceAtLocation(moveGroup[i]);
+							evaluationTaskGroup[i] = new FutureTask<Map<Integer,Move>>(simEngine);
+							evaluationThreadGroup[i] = new Thread(evaluationTaskGroup[i]);
+							evaluationThreadGroup[i].start();
+						}
+						for(int i=0;i<moveGroup.length;i++) { //collect the results from the evaluation and put them to use
+							try {
+								finalResult[i] = evaluationTaskGroup[i].get();
+							} catch (InterruptedException e) {  
+								e.printStackTrace();  
+							} catch (ExecutionException e) {  
+						    	e.printStackTrace();  
+							}
+							for(Integer tmpScore : finalResult[i].keySet()) {score = tmpScore;}
+							//System.out.println(score); //TESTING
+							if(score>largestScoreInBatch) {
+								largestScoreInBatchMove=moveGroup[i];
+							}
+							if(score>=largestScoreInBatch) {
+								largestScoreInBatch=score;
+							}
+							if(largestScoreInBatch>=maximumGuaranteed) {
+								maximumGuaranteed=largestScoreInBatch;
+							}
+							//because we are at ply depth 0, we have to evaluate every move anyway and there's no need for breaking
+						}
+					}
+				} else {
+					for(Move evalMove: allLegalMoves) {
+						simEngine = new EvaluationEngine(this);
 						simEngine.gameCopy.movePieceAtLocation(evalMove);
 						//search for dead games here
 						Map<Integer,Move> scoreMoveMap = simEngine.alphaBetaPly(currentDepth+1,maxDepth,minimumGuaranteed,maximumGuaranteed,initialPlayer);
@@ -115,8 +180,8 @@ public class EvaluationEngine implements Callable<Move> {
 							break;
 						}
 					}
+					//System.out.println(branchesExamined + "/" + numPossMoves);
 				}
-				//System.out.println(branchesExamined + "/" + numPossMoves);
 				moveScorePair.put(maximumGuaranteed,largestScoreInBatchMove);
 				return moveScorePair;
 			}
@@ -142,7 +207,7 @@ public class EvaluationEngine implements Callable<Move> {
 		
 		if(currentDepth==maxDepth) {
 			for(Move legalMove : allLegalMoves) {
-				simEngine = new EvaluationEngine(gameCopy,"alphaBeta",initDepth);
+				simEngine = new EvaluationEngine(this);
 				simEngine.gameCopy.movePieceAtLocation(legalMove);
 				boardScore = simEngine.evalBoard(initialColour,currentDepth,false);
 				
@@ -159,7 +224,7 @@ public class EvaluationEngine implements Callable<Move> {
 			for(Move legalMove : allLegalMoves) {
 				Map<Integer,Move> tmpMovePair = new HashMap<>();
 				
-				simEngine = new EvaluationEngine(gameCopy,"alphaBeta",initDepth);
+				simEngine = new EvaluationEngine(this);
 				simEngine.gameCopy.movePieceAtLocation(legalMove);
 				tmpMovePair = simEngine.bruteForcePly(currentDepth+1,maxDepth);
 				
@@ -251,9 +316,23 @@ public class EvaluationEngine implements Callable<Move> {
 		return total;
 	}
 	
-	EvaluationEngine(GameState gameCopy,String engineType,int initDepth) {
+	EvaluationEngine(EvaluationEngine evaluationEngineCopy,int seedDepth,int seedMin,int seedMax) { //used for threading
+		this(evaluationEngineCopy);
+		
+		this.seedDepth=seedDepth;
+		this.seedMin=seedMin;
+		this.seedMax=seedMax;
+	}
+	EvaluationEngine(EvaluationEngine evaluationEngineCopy) {
+		this.gameCopy=new GameState(evaluationEngineCopy.gameCopy);
+		this.engineType=evaluationEngineCopy.engineType;
+		this.maxDepth=evaluationEngineCopy.maxDepth;
+		this.threadingEnabled=evaluationEngineCopy.threadingEnabled;
+	}
+	EvaluationEngine(GameState gameCopy,String engineType,int maxDepth,boolean threadingEnabled) {
 		this.gameCopy=new GameState(gameCopy); //create a deep copy of the current game
-		this.initDepth=initDepth;
 		this.engineType=engineType;
+		this.maxDepth=maxDepth;
+		this.threadingEnabled=threadingEnabled;
 	}
 }

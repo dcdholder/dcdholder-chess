@@ -79,14 +79,14 @@ public class GameState {
 					} else if(tmpConfigMatch.group("whitePlayer").equals("r")) {
 						whitePlayer = new RngAi(PieceColour.WHITE);
 					} else {
-						whitePlayer = new StaticPlyAi(PieceColour.WHITE, Integer.parseInt(tmpConfigMatch.group("whitePlayer")));
+						whitePlayer = new StaticPlyAiWithThreading(PieceColour.WHITE, Integer.parseInt(tmpConfigMatch.group("whitePlayer")));
 					}
 					if(tmpConfigMatch.group("blackPlayer").equals("h")) {
 						blackPlayer = new Human(PieceColour.BLACK);
 					} else if(tmpConfigMatch.group("blackPlayer").equals("r")) {
 						blackPlayer = new RngAi(PieceColour.BLACK);
 					} else {
-						blackPlayer = new StaticPlyAi(PieceColour.BLACK, Integer.parseInt(tmpConfigMatch.group("blackPlayer")));
+						blackPlayer = new StaticPlyAiWithThreading(PieceColour.BLACK, Integer.parseInt(tmpConfigMatch.group("blackPlayer")));
 					}
 					break;
 				} else {
@@ -540,8 +540,8 @@ public class GameState {
 		private int plyDepth;
 		
 		public Move getNextMove() {
-			EvaluationEngine engine = new EvaluationEngine(GameState.this,"alphaBeta",plyDepth);
-			return engine.alphaBetaPlyMove(plyDepth);
+			EvaluationEngine engine = new EvaluationEngine(GameState.this,"alphaBeta",plyDepth,false);
+			return engine.alphaBetaPlyMove();
 		}
 		public void getAndMakeNextMove() {
 			movePieceAtLocation(getNextMove());
@@ -551,6 +551,25 @@ public class GameState {
 			this.plyDepth=copyStaticPlyAi.plyDepth;
 		}
 		StaticPlyAi(PieceColour playerColour,int plyDepth) {
+			super(playerColour);
+			this.plyDepth=plyDepth;
+		}
+	}
+	class StaticPlyAiWithThreading extends Player {
+		private int plyDepth;
+		
+		public Move getNextMove() {
+			EvaluationEngine engine = new EvaluationEngine(GameState.this,"alphaBeta",plyDepth,true);
+			return engine.alphaBetaPlyMove();
+		}
+		public void getAndMakeNextMove() {
+			movePieceAtLocation(getNextMove());
+		}
+		StaticPlyAiWithThreading(StaticPlyAiWithThreading copyStaticPlyAiWithThreading) {
+			super(copyStaticPlyAiWithThreading);
+			this.plyDepth=copyStaticPlyAiWithThreading.plyDepth;
+		}
+		StaticPlyAiWithThreading(PieceColour playerColour,int plyDepth) {
 			super(playerColour);
 			this.plyDepth=plyDepth;
 		}
